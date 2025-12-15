@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Jesper i Rummet – Tacky Edition</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar__left">
+      <div class="brand">
+        <span class="brand__sparkle">✨</span>
+        <span class="brand__text">JESPER I RUMMET</span>
+        <span class="brand__sparkle">✨</span>
+      </div>
+      <div class="countdown">
+        <span class="countdown__label">Tillbaka till kontoret:</span>
+        <span id="countdownValue" class="countdown__value">--:--:--</span>
+      </div>
+    </div>
+
+    <div class="topbar__right">
+      <button id="soundBtn" class="btn btn--tiny">🔊 Ljud: AV</button>
+      <button id="helpBtn" class="btn btn--tiny">❔</button>
+    </div>
+  </header>
+
+  <main class="app">
+    <div class="screen">
+      <canvas id="game" width="360" height="640" aria-label="Jesper-rummet"></canvas>
+      <div id="bubble" class="bubble hidden" role="status" aria-live="polite"></div>
+
+      <div id="hintToast" class="toast hidden"></div>
+    </div>
+
+    <div class="controls">
+      <div class="dpad">
+        <button class="pad" data-key="up">⬆️</button>
+        <div class="dpad__mid">
+          <button class="pad" data-key="left">⬅️</button>
+          <button class="pad pad--center" data-key="center">😐</button>
+          <button class="pad" data-key="right">➡️</button>
+        </div>
+        <button class="pad" data-key="down">⬇️</button>
+      </div>
+
+      <div class="actions">
+        <button id="kickBtn" class="btn btn--big">👞 SPARKA</button>
+        <button id="interactBtn" class="btn btn--big btn--alt">🪑 SITT</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Hjälp-overlay -->
+  <div id="helpModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal__card">
+      <div class="modal__title">Instruktioner (extremt viktiga)</div>
+      <div class="modal__body">
+        <ul>
+          <li>Styr Jesper med pilarna.</li>
+          <li>Tryck <b>SPARKA</b> nära pyntet för att putta runt det.</li>
+          <li>Tryck <b>SITT</b nära stolen. Jesper blir... reflekterande.</li>
+          <li>Ljud-knappen aktiverar gubbljud (autoplay blockas ofta på mobil).</li>
+          <li>Det finns en hemlig kombination som låser upp en “underbar julbild”.</li>
+        </ul>
+        <p class="small">
+          Tips: Jesper lämnar små, vaga ledtrådar i pratbubblorna. Som vanligt.
+        </p>
+      </div>
+      <div class="modal__actions">
+        <button id="closeHelpBtn" class="btn btn--big">Okej. Jag är redo.</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- “Underbar julbild”-overlay -->
+  <div id="wonder" class="wonder hidden" role="dialog" aria-modal="true">
+    <div class="wonder__scene" aria-hidden="true">
+      <div class="wonder__stars"></div>
+      <div class="wonder__aurora"></div>
+      <div class="wonder__snow"></div>
+      <div class="wonder__tree">
+        <div class="wonder__treeTop"></div>
+        <div class="wonder__treeMid"></div>
+        <div class="wonder__treeBot"></div>
+        <div class="wonder__treeTrunk"></div>
+        <div class="wonder__treeGlow"></div>
+        <div class="wonder__orn o1"></div>
+        <div class="wonder__orn o2"></div>
+        <div class="wonder__orn o3"></div>
+        <div class="wonder__orn o4"></div>
+      </div>
+      <div class="wonder__ground"></div>
+      <div class="wonder__title">GOD JUL, JESPER</div>
+      <div class="wonder__subtitle">Du hittade hemligheten. Det här var… onödigt vackert.</div>
+    </div>
+    <button id="closeWonderBtn" class="btn btn--big wonder__close">⬅️ Tillbaka till rummet</button>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
