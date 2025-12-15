@@ -1,15 +1,22 @@
 (() => {
   'use strict';
 
-  // ====== Countdown (7 Jan 2026 06:00 CET = 05:00 UTC) ======
+  // =========================================================
+  // Jesper i rummet — Dunderversion v2 (NO D-PAD)
+  // - Mobile first, joystick drag on canvas
+  // - SPARKA / SITT buttons
+  // - 3 props, 3 ornaments, secret combo, wonder overlay
+  // =========================================================
+
+  // ===== Countdown (7 Jan 2026 06:00 CET = 05:00 UTC) =====
   const countdownEl = document.getElementById('countdownValue');
   const TARGET_UTC_MS = Date.UTC(2026, 0, 7, 5, 0, 0);
+  const pad2 = (n) => String(n).padStart(2, '0');
 
-  function pad2(n){ return String(n).padStart(2, '0'); }
-  function tickCountdown(){
-    const now = Date.now();
-    const diff = TARGET_UTC_MS - now;
-    if (diff <= 0){ countdownEl.textContent = 'NU. ☕'; return; }
+  function tickCountdown() {
+    if (!countdownEl) return;
+    const diff = TARGET_UTC_MS - Date.now();
+    if (diff <= 0) { countdownEl.textContent = 'NU. ☕'; return; }
     const total = Math.floor(diff / 1000);
     const d = Math.floor(total / 86400);
     const h = Math.floor((total % 86400) / 3600);
@@ -20,10 +27,8 @@
   setInterval(tickCountdown, 1000);
   tickCountdown();
 
-  // ====== DOM ======
+  // ===== DOM =====
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d', { alpha: false });
-
   const bubbleEl = document.getElementById('bubble');
   const toastEl  = document.getElementById('hintToast');
 
@@ -37,16 +42,24 @@
 
   const wonder = document.getElementById('wonder');
   const wonderCanvas = document.getElementById('wonderCanvas');
-  const wctx = wonderCanvas.getContext('2d', { alpha: true });
   const closeWonderBtn = document.getElementById('closeWonderBtn');
 
-  function showBubble(text, ms = 1600){
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  // Wonder canvas is optional, but preferred
+  const wctx = (wonderCanvas && wonderCanvas.getContext) ? wonderCanvas.getContext('2d', { alpha: true }) : null;
+
+  function showBubble(text, ms = 1600) {
+    if (!bubbleEl) return;
     bubbleEl.textContent = text;
     bubbleEl.classList.remove('hidden');
     clearTimeout(showBubble._t);
     showBubble._t = setTimeout(() => bubbleEl.classList.add('hidden'), ms);
   }
-  function toast(text, ms = 1200){
+
+  function toast(text, ms = 1200) {
+    if (!toastEl) return;
     toastEl.textContent = text;
     toastEl.classList.remove('hidden');
     clearTimeout(toast._t);
@@ -56,16 +69,16 @@
   helpBtn?.addEventListener('click', () => helpModal?.classList.remove('hidden'));
   closeHelpBtn?.addEventListener('click', () => helpModal?.classList.add('hidden'));
 
-  // ====== Audio (WebAudio) ======
+  // ===== Audio (WebAudio) =====
   let audioEnabled = false;
   let audioCtx = null;
 
-  function ensureAudio(){
+  function ensureAudio() {
     if (audioCtx) return;
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
 
-  function playGrunt(intensity = 1){
+  function playGrunt(intensity = 1) {
     if (!audioEnabled) return;
     ensureAudio();
     const now = audioCtx.currentTime;
@@ -101,11 +114,11 @@
     o.stop(now + 0.24); n.stop(now + 0.24);
   }
 
-  function playJingle(){
+  function playJingle() {
     if (!audioEnabled) return;
     ensureAudio();
     const now = audioCtx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 659.25, 523.25];
+    const notes = [523.25, 659.25, 783.99, 659.25, 523.25]; // C E G E C
     notes.forEach((freq, i) => {
       const t = now + i * 0.11;
       const o = audioCtx.createOscillator();
@@ -123,344 +136,331 @@
   soundBtn?.addEventListener('click', async () => {
     audioEnabled = !audioEnabled;
     soundBtn.textContent = audioEnabled ? '🔊 Ljud: PÅ' : '🔊 Ljud: AV';
-    if (audioEnabled){
+    if (audioEnabled) {
       ensureAudio();
       if (audioCtx.state === 'suspended') await audioCtx.resume();
-      toast('Ljud på. Jesper låter… opassande.');
+      toast('Ljud på. Jesper har… foley.', 1200);
       playGrunt(1.0);
     } else {
-      toast('Ljud av. En kort stund av värdighet.');
+      toast('Ljud av. Stillhet. Nästan.', 1200);
     }
   });
 
-  // ====== Resize (draw in CSS pixels; handle DPR) ======
-  let cssW = 0, cssH = 0, dpr = 1;
+  // ===== Math helpers =====
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 
-  function resizeCanvas(){
-    const rect = canvas.getBoundingClientRect();
-    cssW = rect.width;
-    cssH = rect.height;
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    canvas.width = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    // Wonder canvas covers full viewport
-    const W = window.innerWidth, H = window.innerHeight;
-    wonderCanvas.width = Math.round(W * dpr);
-    wonderCanvas.height = Math.round(H * dpr);
-    wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    layout(!world._placed);
-    syncSizes();
+  function aabbCircleHit(x, y, w, h, cx, cy, cr) {
+    const px = clamp(cx, x, x + w);
+    const py = clamp(cy, y, y + h);
+    return dist(px, py, cx, cy) <= cr;
   }
 
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
-
-  function maybeResizeFromSafariUI(){
-    // iOS toolbar sometimes changes canvas rect without firing resize
-    const rect = canvas.getBoundingClientRect();
-    if (Math.abs(rect.width - cssW) > 0.5 || Math.abs(rect.height - cssH) > 0.5){
-      resizeCanvas();
-    }
-  }
-
-  // ====== World layout ======
-  const world = {
-    R: { x: 0, y: 0, w: 0, h: 0 },
-    table: { x:0,y:0,w:0,h:0 },
-    chair: { x:0,y:0,w:0,h:0 },
-    tree:  { x:0,y:0,w:0,h:0 },
-    _placed: false
-  };
-
-  function layout(initial){
-    const pad = 14;
-    world.R.x = pad;
-    world.R.y = pad;
-    world.R.w = Math.max(200, cssW - pad * 2);
-    world.R.h = Math.max(220, cssH - pad * 2);
-    world.R.h = Math.min(world.R.h, Math.floor(cssH * 0.93));
-
-    const R = world.R;
-
-    world.table.w = Math.floor(R.w * 0.46);
-    world.table.h = Math.floor(R.h * 0.16);
-
-    world.chair.w = Math.floor(R.w * 0.22);
-    world.chair.h = Math.floor(R.h * 0.22);
-
-    world.tree.w  = Math.floor(R.w * 0.24);
-    world.tree.h  = Math.floor(R.h * 0.42);
-
-    world.table.x = R.x + Math.floor(R.w * 0.08);
-    world.table.y = R.y + Math.floor(R.h * 0.63);
-
-    world.chair.x = world.table.x + world.table.w + Math.floor(R.w * 0.06);
-    world.chair.y = world.table.y + Math.floor(R.h * 0.03);
-
-    world.tree.x  = R.x + R.w - world.tree.w - Math.floor(R.w * 0.06);
-    world.tree.y  = R.y + Math.floor(R.h * 0.08);
-
-    // Place entities once; otherwise just clamp into new room
-    if (initial || !world._placed){
-      world._placed = true;
-
-      jesper.x = R.x + Math.floor(R.w * 0.16);
-      jesper.y = R.y + Math.floor(R.h * 0.82);
-      jesper.vx = 0; jesper.vy = 0; jesper.face = 1;
-
-      const cx = R.x + R.w * 0.54;
-      const cy = R.y + R.h * 0.38;
-      const gap = Math.max(52, Math.floor(R.w * 0.18));
-
-      ornaments[0].x = cx - gap; ornaments[0].y = cy + 18;
-      ornaments[1].x = cx;       ornaments[1].y = cy - 10;
-      ornaments[2].x = cx + gap; ornaments[2].y = cy + 18;
-      ornaments.forEach(o => { o.vx = 0; o.vy = 0; });
-    } else {
-      // clamp without teleporting
-      jesper.x = clamp(jesper.x, R.x + jesper.r, R.x + R.w - jesper.r);
-      jesper.y = clamp(jesper.y, R.y + jesper.r, R.y + R.h - jesper.r);
-      ornaments.forEach(o => {
-        o.x = clamp(o.x, R.x + o.r, R.x + R.w - o.r);
-        o.y = clamp(o.y, R.y + o.r, R.y + R.h - o.r);
-      });
-    }
-  }
-
-  // ====== Entities & state ======
+  // ===== Game state =====
   const state = {
-    joy: { active:false, sx:0, sy:0, dx:0, dy:0 },
-    dragging: null,
     sitting: false,
-    secret: { step: 0, unlocked: false }, // clock->candy->star->sit
+    lastAction: 0,
+    dragging: null,
+
+    // joystick in canvas pixels; converted to world in toWorld()
+    joy: { active: false, startX: 0, startY: 0, dx: 0, dy: 0 },
+
+    secret: { step: 0, unlocked: false }, // ⏰ -> 🍬 -> ⭐ -> sit
+
     puffs: [],
-    snow: []
+    snow: [],
+    snowT: 0
   };
 
-  const jesper = { x: 0, y: 0, vx: 0, vy: 0, r: 18, face: 1 };
+  // ===== World (fixed coordinate system) =====
+  const WORLD = { w: 360, h: 520 };
+  const ROOM  = { x: 14, y: 14, w: 332, h: 330 };
+
+  const view = { scale: 1, ox: 0, oy: 0, cssW: 0, cssH: 0, dpr: 1 };
+
+  // Entities (placed in placeEntities)
+  const jesper = { x: 80, y: 290, vx: 0, vy: 0, r: 18, face: 1 };
+
+  const props = {
+    table: { x: 0, y: 0, w: 150, h: 56 },
+    chair: { x: 0, y: 0, w: 92,  h: 92 },
+    tree:  { x: 0, y: 0, w: 104, h: 156 }
+  };
+
   const ornaments = [
-    { id:'clock', label:'⏰', base:'#fde047', x:0,y:0,r:18,vx:0,vy:0 },
-    { id:'candy', label:'🍬', base:'#fb7185', x:0,y:0,r:18,vx:0,vy:0 },
-    { id:'star',  label:'⭐',  base:'#60a5fa', x:0,y:0,r:18,vx:0,vy:0 }
+    { id: 'clock', label: '⏰', base: '#fde047', x: 0, y: 0, r: 18, vx: 0, vy: 0 },
+    { id: 'candy', label: '🍬', base: '#fb7185', x: 0, y: 0, r: 18, vx: 0, vy: 0 },
+    { id: 'star',  label: '⭐', base: '#60a5fa', x: 0, y: 0, r: 18, vx: 0, vy: 0 }
   ];
 
-  function syncSizes(){
-    const R = world.R;
-    const base = Math.max(16, Math.floor(Math.min(R.w, R.h) * 0.050));
-    jesper.r = base + 2;
-    ornaments.forEach(o => o.r = base + 1);
-    // keep in bounds after resize
-    jesper.x = clamp(jesper.x, R.x + jesper.r, R.x + R.w - jesper.r);
-    jesper.y = clamp(jesper.y, R.y + jesper.r, R.y + R.h - jesper.r);
-    ornaments.forEach(o => {
-      o.x = clamp(o.x, R.x + o.r, R.x + R.w - o.r);
-      o.y = clamp(o.y, R.y + o.r, R.y + R.h - o.r);
-    });
+  function placeEntities() {
+    // furniture: separated, readable
+    props.table.x = ROOM.x + 18;
+    props.table.y = ROOM.y + ROOM.h - 118;
+
+    props.chair.x = props.table.x + props.table.w + 20;
+    props.chair.y = props.table.y + 10;
+
+    props.tree.x  = ROOM.x + ROOM.w - props.tree.w - 16;
+    props.tree.y  = ROOM.y + 26;
+
+    // ornaments centered and not on top of tree
+    const cx = ROOM.x + ROOM.w * 0.56;
+    const cy = ROOM.y + ROOM.h * 0.40;
+    const gap = 62;
+
+    ornaments[0].x = cx - gap; ornaments[0].y = cy + 18; ornaments[0].vx = ornaments[0].vy = 0;
+    ornaments[1].x = cx;       ornaments[1].y = cy - 10; ornaments[1].vx = ornaments[1].vy = 0;
+    ornaments[2].x = cx + gap; ornaments[2].y = cy + 18; ornaments[2].vx = ornaments[2].vy = 0;
+
+    // Jesper start: bottom-left
+    jesper.x = ROOM.x + 70;
+    jesper.y = ROOM.y + ROOM.h - 72;
+    jesper.vx = 0; jesper.vy = 0; jesper.face = 1;
   }
 
-  // ====== Input (pointer only — NO PILAR) ======
-  function pointerPos(e){
+  // ===== Resize =====
+  function resizeAll() {
     const rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    view.cssW = rect.width;
+    view.cssH = rect.height;
+    view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = Math.max(2, Math.round(view.cssW * view.dpr));
+    canvas.height = Math.max(2, Math.round(view.cssH * view.dpr));
+    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+
+    // fit world inside canvas
+    view.scale = Math.min(view.cssW / WORLD.w, view.cssH / WORLD.h);
+    view.ox = (view.cssW - WORLD.w * view.scale) / 2;
+    view.oy = (view.cssH - WORLD.h * view.scale) / 2;
+
+    if (wonderCanvas && wctx) {
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      wonderCanvas.width  = Math.max(2, Math.round(W * view.dpr));
+      wonderCanvas.height = Math.max(2, Math.round(H * view.dpr));
+      wctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    }
+
+    // place after resize to keep proportions consistent
+    placeEntities();
+  }
+
+  function maybeResizeFromSafariUI() {
+    const rect = canvas.getBoundingClientRect();
+    if (Math.abs(rect.width - view.cssW) > 0.5 || Math.abs(rect.height - view.cssH) > 0.5) {
+      resizeAll();
+    }
+  }
+
+  window.addEventListener('resize', resizeAll);
+  resizeAll();
+
+  // ===== Coordinate conversion =====
+  function toWorld(px, py) {
+    return {
+      x: (px - view.ox) / view.scale,
+      y: (py - view.oy) / view.scale
+    };
+  }
+
+  // ===== Pointer input: drag ornaments OR joystick =====
+  function pointerPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const p = pointerPos(e);
+    const w = toWorld(p.x, p.y);
 
-    const hit = ornaments.find(o => dist(o.x, o.y, p.x, p.y) <= o.r + 12);
-    if (hit){
+    // hit ornaments
+    const hit = ornaments.find(o => dist(o.x, o.y, w.x, w.y) <= o.r + 10);
+    if (hit) {
       state.dragging = hit;
       hit.vx = 0; hit.vy = 0;
       canvas.setPointerCapture(e.pointerId);
-      toast('Flyttar pynt.');
+      toast('Flyttar pynt.', 900);
       playGrunt(0.75);
       return;
     }
 
+    // joystick
     state.joy.active = true;
-    state.joy.sx = p.x;
-    state.joy.sy = p.y;
+    state.joy.startX = w.x;
+    state.joy.startY = w.y;
     state.joy.dx = 0;
     state.joy.dy = 0;
     canvas.setPointerCapture(e.pointerId);
-  }, { passive:false });
+  }, { passive: false });
 
   canvas.addEventListener('pointermove', (e) => {
     e.preventDefault();
     const p = pointerPos(e);
+    const w = toWorld(p.x, p.y);
 
-    if (state.dragging){
+    if (state.dragging) {
       const o = state.dragging;
-      const R = world.R;
-      o.x = clamp(p.x, R.x + o.r, R.x + R.w - o.r);
-      o.y = clamp(p.y, R.y + o.r, R.y + R.h - o.r);
+      o.x = clamp(w.x, ROOM.x + o.r, ROOM.x + ROOM.w - o.r);
+      o.y = clamp(w.y, ROOM.y + o.r, ROOM.y + ROOM.h - o.r);
       return;
     }
 
-    if (state.joy.active){
-      const max = 56;
-      state.joy.dx = clamp(p.x - state.joy.sx, -max, max);
-      state.joy.dy = clamp(p.y - state.joy.sy, -max, max);
+    if (state.joy.active) {
+      const max = 46;
+      state.joy.dx = clamp(w.x - state.joy.startX, -max, max);
+      state.joy.dy = clamp(w.y - state.joy.startY, -max, max);
     }
-  }, { passive:false });
+  }, { passive: false });
 
-  function endPointer(){
+  function endPointer() {
     state.dragging = null;
     state.joy.active = false;
-    state.joy.dx = 0;
-    state.joy.dy = 0;
+    state.joy.dx = 0; state.joy.dy = 0;
   }
+  canvas.addEventListener('pointerup', endPointer, { passive: false });
+  canvas.addEventListener('pointercancel', endPointer, { passive: false });
 
-  canvas.addEventListener('pointerup', endPointer, { passive:false });
-  canvas.addEventListener('pointercancel', endPointer, { passive:false });
+  // ===== Actions =====
+  kickBtn?.addEventListener('click', () => doKick());
+  sitBtn?.addEventListener('click', () => doSit());
 
-  kickBtn?.addEventListener('click', () => kick());
-  sitBtn?.addEventListener('click', () => sit());
-
-  // ====== Secret ======
-  function advanceSecret(id){
+  function advanceSecret(expectedId) {
     if (state.secret.unlocked) return;
-    const need =
+    const stepId =
       state.secret.step === 0 ? 'clock' :
       state.secret.step === 1 ? 'candy' :
       state.secret.step === 2 ? 'star'  : null;
 
-    if (id === need){
+    if (expectedId === stepId) {
       state.secret.step++;
-      toast(`Hemligheten: ${state.secret.step}/3`);
+      toast(`Hemligheten: ${state.secret.step}/3`, 1000);
       playGrunt(1.0);
-      if (state.secret.step === 3) showBubble('SITT på stolen. Nu.');
+      if (state.secret.step === 3) showBubble('SITT på stolen. Nu.', 1400);
       return;
     }
-
     state.secret.step = 0;
-    toast('Nej. Hemligheten nollställdes.');
+    toast('Nej. Hemligheten blev sur.', 1200);
     playGrunt(0.8);
   }
 
-  function unlockWonder(){
+  function unlockWonder() {
     if (state.secret.unlocked) return;
     state.secret.unlocked = true;
     playJingle();
-    showBubble('LEGENDARISKT. ✨', 1400);
-    wonder.classList.remove('hidden');
-    drawWonderScene(true);
+    showBubble('…okej. Respekt.', 1400);
+    wonder?.classList.remove('hidden');
   }
 
   closeWonderBtn?.addEventListener('click', () => {
-    wonder.classList.add('hidden');
-    showBubble('Tillbaka i rummet. Självklart.');
+    wonder?.classList.add('hidden');
+    showBubble('Tillbaka i rummet. Som vanligt.', 1400);
   });
 
-  // ====== Actions ======
-  function kick(){
-    const reach = Math.max(76, jesper.r * 3.2);
-
-    const nearest = ornaments
-      .map(o => ({ o, d: dist(jesper.x, jesper.y, o.x, o.y) }))
-      .filter(x => x.d <= reach)
-      .sort((a,b) => a.d - b.d)[0];
-
-    if (!nearest){
-      showBubble('Sparkade luft. Det var… terapeutiskt.');
-      playGrunt(0.7);
-      return;
-    }
-
-    const o = nearest.o;
-    const dx = o.x - jesper.x;
-    const dy = o.y - jesper.y;
-    const len = Math.max(1, Math.hypot(dx, dy));
-    const nx = dx / len;
-    const ny = dy / len;
-
-    const impulse = 520 + Math.random() * 180;
-    o.vx += nx * impulse;
-    o.vy += ny * impulse;
-
-    addPuff(o.x - nx * 12, o.y - ny * 12, 1.0);
-    showBubble(`👞 SPARK! (${o.label})`, 900);
-    playGrunt(1.0);
-
-    advanceSecret(o.id);
+  function addPuff(x, y, strength = 1) {
+    state.puffs.push({
+      x, y,
+      r: 6 + Math.random() * 7 * strength,
+      a: 1.0,
+      vx: (Math.random() * 2 - 1) * 22 * strength,
+      vy: (Math.random() * 2 - 1) * 22 * strength
+    });
+    if (state.puffs.length > 30) state.puffs.splice(0, state.puffs.length - 30);
   }
 
-  function sit(){
-    const c = world.chair;
-    const ok = aabbCircleHit(c.x, c.y, c.w, c.h, jesper.x, jesper.y, jesper.r + 14);
+  function doKick() {
+    const now = performance.now();
+    if (now - state.lastAction < 120) return;
+    state.lastAction = now;
 
-    if (!ok){
-      showBubble('Satt mentalt. Inte fysiskt.');
+    const reach = 78;
+    let best = null;
+    let bestD = 1e9;
+    for (const o of ornaments) {
+      const d = dist(jesper.x, jesper.y, o.x, o.y);
+      if (d < reach && d < bestD) { best = o; bestD = d; }
+    }
+
+    if (!best) {
+      showBubble('Sparkade luft. Känns korrekt.', 1400);
       playGrunt(0.65);
       return;
     }
 
-    state.sitting = true;
-    showBubble('🪑 …jul… kaffe… existens…', 1300);
-    playGrunt(0.8);
+    const dx = best.x - jesper.x;
+    const dy = best.y - jesper.y;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const nx = dx / len, ny = dy / len;
 
-    if (state.secret.step === 3 && !state.secret.unlocked){
-      toast('Kombination fullbordad!');
-      unlockWonder();
-    }
+    const impulse = 520 + Math.random() * 140;
+    best.vx += nx * impulse;
+    best.vy += ny * impulse;
 
-    setTimeout(() => state.sitting = false, 850);
+    addPuff(best.x - nx * 14, best.y - ny * 14, 1.0);
+
+    showBubble(`👞 SPARK! (${best.label})`, 950);
+    playGrunt(1.0);
+    advanceSecret(best.id);
   }
 
-  // ====== Light chatter ======
+  function doSit() {
+    const c = props.chair;
+    const inRange = aabbCircleHit(c.x, c.y, c.w, c.h, jesper.x, jesper.y, jesper.r + 12);
+
+    if (!inRange) {
+      showBubble('Satt mentalt. Inte fysiskt.', 1400);
+      playGrunt(0.6);
+      return;
+    }
+
+    state.sitting = true;
+    showBubble('🪑 …existens… kaffe… jul…', 1350);
+    playGrunt(0.8);
+
+    if (state.secret.step === 3 && !state.secret.unlocked) {
+      toast('Kombination fullbordad!', 1200);
+      unlockWonder();
+    } else if (!state.secret.unlocked) {
+      toast('Du satt. Hemligheten: skeptisk.', 1200);
+    }
+
+    setTimeout(() => { state.sitting = false; }, 850);
+  }
+
+  // ===== Light commentary =====
   const lines = [
-    'Rummet är… otroligt budget.',
-    'Min hoodie är 100% certifierad mys.',
-    'Jag saknar kontoret. (Säg inte det högt.)',
-    'Det här pyntet är ett test av min moral.',
-    'Kaffe är en metod.'
+    'Rummet är… minimalistiskt.',
+    'Jag är en legend i ett tomt rum.',
+    'Vem godkände den här granen?',
+    '⏰ känns… hotfull.',
+    'Jag vill ha kaffe.'
   ];
   setInterval(() => {
-    if (!wonder.classList.contains('hidden')) return;
-    if (Math.random() < 0.22){
-      showBubble(lines[(Math.random() * lines.length) | 0]);
-      playGrunt(0.55);
-    }
-    if (!state.secret.unlocked && Math.random() < 0.12){
-      if (state.secret.step === 0) showBubble('⏰ känns… viktigt.', 1200);
-      if (state.secret.step === 1) showBubble('🍬 är… misstänkt.', 1200);
-      if (state.secret.step === 2) showBubble('⭐ är… sista biten.', 1200);
+    if (wonder && !wonder.classList.contains('hidden')) return;
+    if (Math.random() < 0.24) {
+      showBubble(lines[(Math.random() * lines.length) | 0], 1500);
+      playGrunt(0.45);
     }
   }, 4200);
 
-  // ====== Physics helpers ======
-  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-  function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
-
-  function aabbCircleHit(x,y,w,h,cx,cy,cr){
-    const px = clamp(cx, x, x+w);
-    const py = clamp(cy, y, y+h);
-    return dist(px,py,cx,cy) <= cr;
+  // ===== Physics =====
+  function resolveWallCircle(o) {
+    if (o.x - o.r < ROOM.x) { o.x = ROOM.x + o.r; o.vx *= -0.55; }
+    if (o.x + o.r > ROOM.x + ROOM.w) { o.x = ROOM.x + ROOM.w - o.r; o.vx *= -0.55; }
+    if (o.y - o.r < ROOM.y) { o.y = ROOM.y + o.r; o.vy *= -0.55; }
+    if (o.y + o.r > ROOM.y + ROOM.h) { o.y = ROOM.y + ROOM.h - o.r; o.vy *= -0.55; }
   }
 
-  function resolveWallCircle(o){
-    const R = world.R;
-    if (o.x - o.r < R.x){ o.x = R.x + o.r; o.vx *= -0.55; }
-    if (o.x + o.r > R.x + R.w){ o.x = R.x + R.w - o.r; o.vx *= -0.55; }
-    if (o.y - o.r < R.y){ o.y = R.y + o.r; o.vy *= -0.55; }
-    if (o.y + o.r > R.y + R.h){ o.y = R.y + R.h - o.r; o.vy *= -0.55; }
-  }
-
-  function resolveRectBlockCircle(o, rect){
+  function resolveRectBlockCircle(o, rect) {
     if (!aabbCircleHit(rect.x, rect.y, rect.w, rect.h, o.x, o.y, o.r)) return;
 
     const cx = clamp(o.x, rect.x, rect.x + rect.w);
     const cy = clamp(o.y, rect.y, rect.y + rect.h);
-    const dx = o.x - cx;
-    const dy = o.y - cy;
+    const dx = o.x - cx, dy = o.y - cy;
     const len = Math.max(1e-6, Math.hypot(dx, dy));
-    const nx = dx / len;
-    const ny = dy / len;
+    const nx = dx / len, ny = dy / len;
 
     o.x = cx + nx * (o.r + 0.6);
     o.y = cy + ny * (o.r + 0.6);
@@ -468,432 +468,287 @@
     const dot = o.vx * nx + o.vy * ny;
     o.vx -= 1.35 * dot * nx;
     o.vy -= 1.35 * dot * ny;
-    o.vx *= 0.82;
-    o.vy *= 0.82;
+    o.vx *= 0.82; o.vy *= 0.82;
   }
 
-  // ====== Puffs (motion clarity) ======
-  function addPuff(x, y, strength = 1){
-    state.puffs.push({
-      x, y,
-      r: 6 + Math.random() * 7 * strength,
-      a: 1.0,
-      vx: (Math.random()*2-1) * 24 * strength,
-      vy: (Math.random()*2-1) * 22 * strength
-    });
-    if (state.puffs.length > 32) state.puffs.shift();
-  }
-
-  // ====== Update & Draw ======
-  function update(dt, tMs){
-    maybeResizeFromSafariUI();
-
-    // movement from joystick
-    let ax = 0, ay = 0;
-    if (state.joy.active){
-      ax = state.joy.dx / 56;
-      ay = state.joy.dy / 56;
-      const mag = Math.hypot(ax, ay);
-      if (mag > 1){ ax /= mag; ay /= mag; }
-    }
-
-    const targetSpeed = state.sitting ? 0 : 240;
-    const tx = ax * targetSpeed;
-    const ty = ay * targetSpeed;
-
-    // smooth accel
-    const lerp = 1 - Math.pow(0.001, dt);
-    jesper.vx += (tx - jesper.vx) * lerp;
-    jesper.vy += (ty - jesper.vy) * lerp;
-
-    const oldX = jesper.x, oldY = jesper.y;
-
-    jesper.x += jesper.vx * dt;
-    jesper.y += jesper.vy * dt;
-
-    const R = world.R;
-    jesper.x = clamp(jesper.x, R.x + jesper.r, R.x + R.w - jesper.r);
-    jesper.y = clamp(jesper.y, R.y + jesper.r, R.y + R.h - jesper.r);
-
-    if (Math.abs(jesper.vx) > 4) jesper.face = Math.sign(jesper.vx);
-
-    const moved = dist(oldX, oldY, jesper.x, jesper.y);
-    if (!state.sitting && moved > 0.9 && Math.random() < 0.35){
-      addPuff(jesper.x - jesper.face * 10, jesper.y + jesper.r + 8, 0.45);
-    }
-
-    // ornaments
-    const friction = Math.pow(0.10, dt);
-    const blocks = [ world.table, world.chair, world.tree ];
-
-    ornaments.forEach(o => {
-      if (state.dragging === o) return;
-
-      o.x += o.vx * dt;
-      o.y += o.vy * dt;
-
-      o.vx *= friction;
-      o.vy *= friction;
-
-      if (Math.abs(o.vx) < 2) o.vx = 0;
-      if (Math.abs(o.vy) < 2) o.vy = 0;
-
-      resolveWallCircle(o);
-      blocks.forEach(b => resolveRectBlockCircle(o, b));
-
-      const d = dist(o.x, o.y, jesper.x, jesper.y);
-      const minD = o.r + jesper.r;
-      if (d < minD){
-        const nx = (o.x - jesper.x) / Math.max(d, 1);
-        const ny = (o.y - jesper.y) / Math.max(d, 1);
-        const push = (minD - d) * 1.05;
-        o.x += nx * push;
-        o.y += ny * push;
-        o.vx += nx * 140;
-        o.vy += ny * 140;
-      }
-    });
-
-    // puffs
-    state.puffs.forEach(p => {
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.a -= 1.9 * dt;
-    });
-    state.puffs = state.puffs.filter(p => p.a > 0);
-  }
-
-  function draw(tMs){
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, cssW, cssH);
-
-    const R = world.R;
-
-    // room fill
-    ctx.fillStyle = '#f3f4f6';
-    ctx.fillRect(R.x, R.y, R.w, R.h);
-
-    // border
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(R.x, R.y, R.w, R.h);
-
-    // baseboard
-    const baseY = R.y + R.h - Math.max(22, Math.floor(R.h * 0.07));
-    ctx.strokeStyle = 'rgba(17,24,39,0.20)';
-    ctx.lineWidth = 2;
+  // ===== Drawing primitives =====
+  function roundRect(x, y, w, h, r, fill, stroke) {
+    const rr = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
-    ctx.moveTo(R.x, baseY);
-    ctx.lineTo(R.x + R.w, baseY);
-    ctx.stroke();
-
-    // label
-    ctx.fillStyle = 'rgba(17,24,39,0.24)';
-    ctx.font = '900 12px ui-monospace, monospace';
-    ctx.fillText('RUM 01 — EXISTENS / JUL / KAFFE', R.x + 10, R.y + R.h - 10);
-
-    // puffs behind
-    state.puffs.forEach(p => {
-      ctx.globalAlpha = Math.max(0, p.a) * 0.25;
-      ctx.beginPath();
-      ctx.fillStyle = '#111827';
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-
-    // furniture
-    drawTree(world.tree, tMs);
-    drawTable(world.table);
-    drawChair(world.chair);
-
-    // ornaments
-    ornaments.slice().sort((a,b)=>a.y-b.y).forEach(drawOrnament);
-
-    // Jesper
-    drawJesper(tMs);
-
-    // joystick
-    if (state.joy.active && !state.dragging) drawJoystick();
-  }
-
-  function roundRect(x,y,w,h,r, fill, stroke){
-    const rr = Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+rr, y);
-    ctx.arcTo(x+w, y, x+w, y+h, rr);
-    ctx.arcTo(x+w, y+h, x, y+h, rr);
-    ctx.arcTo(x, y+h, x, y, rr);
-    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
     ctx.closePath();
     if (fill) ctx.fill();
     if (stroke) ctx.stroke();
   }
 
-  function drawTable(t){
-    ctx.save();
-    const rad = Math.max(10, Math.floor(t.h * 0.35));
-
+  // ===== Draw: Furniture =====
+  function drawTable(t) {
+    // tabletop
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 3;
-    roundRect(t.x, t.y, t.w, t.h, rad, true, true);
+    roundRect(t.x, t.y, t.w, t.h, 14, true, true);
 
+    // subtle inset
+    ctx.strokeStyle = 'rgba(17,24,39,0.18)';
+    ctx.lineWidth = 2;
+    roundRect(t.x + 8, t.y + 8, t.w - 16, t.h - 16, 12, false, true);
+
+    // legs
     ctx.fillStyle = '#e5e7eb';
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 2.5;
-    const legW = Math.max(12, Math.floor(t.w * 0.10));
-    const legH = Math.max(28, Math.floor(t.h * 0.70));
-    roundRect(t.x + Math.floor(t.w*0.12), t.y + t.h - 2, legW, legH, 8, true, true);
-    roundRect(t.x + t.w - Math.floor(t.w*0.12) - legW, t.y + t.h - 2, legW, legH, 8, true, true);
+    roundRect(t.x + 18, t.y + t.h - 2, 14, 38, 8, true, true);
+    roundRect(t.x + t.w - 32, t.y + t.h - 2, 14, 38, 8, true, true);
 
-    // coffee mug
+    // coffee mug (tacky)
     ctx.fillStyle = '#dbeafe';
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 2.5;
-    const mx = t.x + t.w - Math.floor(t.w*0.22);
-    const my = t.y + Math.floor(t.h*0.20);
-    roundRect(mx, my, 18, 16, 6, true, true);
+    roundRect(t.x + t.w - 46, t.y + 12, 18, 16, 6, true, true);
     ctx.beginPath();
-    ctx.arc(mx + 18, my + 8, 6, -0.5, 0.5);
+    ctx.arc(t.x + t.w - 24, t.y + 20, 6, -0.5, 0.5);
     ctx.stroke();
-
-    ctx.restore();
   }
 
-  function drawChair(c){
-    ctx.save();
+  function drawChair(c) {
+    // seat
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 3;
+    roundRect(c.x, c.y + 34, c.w, c.h - 34, 14, true, true);
 
-    roundRect(c.x, c.y + Math.floor(c.h*0.35), c.w, Math.floor(c.h*0.65), 14, true, true);
-    roundRect(c.x + Math.floor(c.w*0.10), c.y, Math.floor(c.w*0.80), Math.floor(c.h*0.50), 14, true, true);
+    // backrest (bigger and clear)
+    roundRect(c.x + 10, c.y, c.w - 20, 46, 14, true, true);
+
+    // small bolts (silly detail)
+    ctx.fillStyle = 'rgba(17,24,39,0.25)';
+    ctx.beginPath();
+    ctx.arc(c.x + 18, c.y + 52, 2.2, 0, Math.PI * 2);
+    ctx.arc(c.x + c.w - 18, c.y + 52, 2.2, 0, Math.PI * 2);
+    ctx.fill();
 
     // label bubble
-    const bx = c.x + Math.floor(c.w*0.22);
-    const by = c.y - 18;
-    roundRect(bx, by, 50, 22, 10, true, true);
-    ctx.fillStyle = 'rgba(17,24,39,0.85)';
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 2.5;
+    roundRect(c.x + 24, c.y - 18, 48, 22, 10, true, true);
+    ctx.fillStyle = 'rgba(17,24,39,0.8)';
     ctx.font = '900 10px ui-monospace, monospace';
-    ctx.fillText('STOL', bx + 12, by + 15);
-
-    ctx.restore();
+    ctx.fillText('STOL', c.x + 35, c.y - 3);
   }
 
-  function drawTree(tr, tMs){
+  function drawTree(tr, tMs) {
     ctx.save();
 
+    // glow halo
     const pulse = 0.75 + 0.25 * Math.sin(tMs / 240);
-    ctx.globalAlpha = 0.16 * pulse;
+    ctx.globalAlpha = 0.18 * pulse;
     ctx.fillStyle = '#60a5fa';
     ctx.beginPath();
-    ctx.ellipse(tr.x + tr.w/2, tr.y + tr.h*0.55, tr.w*0.65, tr.h*0.55, 0, 0, Math.PI*2);
+    ctx.ellipse(tr.x + tr.w / 2, tr.y + tr.h * 0.55, 56, 74, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
+    // trunk
     ctx.fillStyle = '#d1d5db';
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 2.5;
-    roundRect(tr.x + tr.w*0.43, tr.y + tr.h*0.78, tr.w*0.14, tr.h*0.20, 8, true, true);
+    roundRect(tr.x + tr.w * 0.43, tr.y + tr.h * 0.78, tr.w * 0.14, tr.h * 0.20, 8, true, true);
+
+    // triangles
+    const tri = (ax, ay, bx, by, cx, cy) => {
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.lineTo(cx, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
 
     ctx.fillStyle = '#dcfce7';
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 2.5;
 
-    function tri(ax,ay,bx,by,cx,cy){
-      ctx.beginPath();
-      ctx.moveTo(ax,ay);
-      ctx.lineTo(bx,by);
-      ctx.lineTo(cx,cy);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
+    tri(tr.x + tr.w / 2, tr.y + 10, tr.x + 10, tr.y + tr.h * 0.52, tr.x + tr.w - 10, tr.y + tr.h * 0.52);
+    tri(tr.x + tr.w / 2, tr.y + tr.h * 0.22, tr.x + 8, tr.y + tr.h * 0.76, tr.x + tr.w - 8, tr.y + tr.h * 0.76);
 
-    tri(tr.x + tr.w/2, tr.y + 12, tr.x + 10, tr.y + tr.h*0.52, tr.x + tr.w - 10, tr.y + tr.h*0.52);
-    tri(tr.x + tr.w/2, tr.y + tr.h*0.22, tr.x + 8, tr.y + tr.h*0.78, tr.x + tr.w - 8, tr.y + tr.h*0.78);
-
+    // topper star + baubles
     ctx.font = '22px ' + getComputedStyle(document.body).fontFamily;
-    ctx.fillText('⭐', tr.x + tr.w/2 - 10, tr.y + 24);
+    ctx.fillText('⭐', tr.x + tr.w / 2 - 10, tr.y + 24);
 
     ctx.font = '18px ' + getComputedStyle(document.body).fontFamily;
-    ctx.fillText('🔴', tr.x + 14, tr.y + tr.h*0.40);
-    ctx.fillText('🔴', tr.x + tr.w - 30, tr.y + tr.h*0.46);
-    ctx.fillText('🔴', tr.x + tr.w/2 - 8, tr.y + tr.h*0.60);
+    ctx.fillText('🔴', tr.x + 16, tr.y + 64);
+    ctx.fillText('🔴', tr.x + tr.w - 30, tr.y + 78);
+    ctx.fillText('🔴', tr.x + tr.w / 2 - 8, tr.y + 104);
 
     ctx.restore();
   }
 
-  function drawOrnament(o){
-    ctx.save();
+  function drawOrnament(o) {
+    // base disc
     ctx.beginPath();
     ctx.fillStyle = o.base;
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 3;
-    ctx.arc(o.x, o.y, o.r, 0, Math.PI*2);
+    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
+    // little shine
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(o.x - 6, o.y - 6, o.r * 0.35, Math.PI * 1.1, Math.PI * 1.7);
+    ctx.stroke();
+
+    // emoji
     ctx.font = '24px ' + getComputedStyle(document.body).fontFamily;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#111827';
     ctx.fillText(o.label, o.x, o.y + 1);
-
-    ctx.restore();
   }
 
-  function drawJesper(tMs){
-    const moving = Math.hypot(jesper.vx, jesper.vy) > 16;
-    const walk = moving ? Math.sin(tMs / 85) : 0;
+  // ===== Jesper drawing (clearer character) =====
+  function drawJesper(tMs) {
+    const moving = Math.abs(jesper.vx) + Math.abs(jesper.vy) > 1;
+    const walk = moving ? Math.sin(tMs / 90) : 0;
     const idle = moving ? 0 : Math.sin(tMs / 420);
-
     const sit = state.sitting ? 1 : 0;
-    const bob = (sit ? 0.2 : 1) * (moving ? walk * 2.0 : idle * 1.0);
+    const bob = (sit ? 0.2 : 1) * (moving ? walk * 2.2 : idle * 1.0);
 
     const x = jesper.x;
     const y = jesper.y + bob;
     const face = jesper.face || 1;
 
-    const skin  = 'rgba(255,235,190,1)';
+    const skin  = 'rgba(255,235,190,1.0)';
     const hair  = 'rgba(148,72,34,0.95)';
     const hairH = 'rgba(198,108,58,0.78)';
-    const hood  = 'rgba(17,24,39,1)';
-    const pants = 'rgba(156,163,175,1)';
-    const shoe  = 'rgba(120,74,36,1)';
+    const hood  = 'rgba(17,24,39,1.0)';
+    const pants = 'rgba(156,163,175,1.0)';
+    const shoe  = 'rgba(120,74,36,1.0)';
 
     // shadow
     ctx.beginPath();
     ctx.fillStyle = 'rgba(17,24,39,0.18)';
-    ctx.ellipse(x, y + jesper.r + 14, jesper.r * 1.2, 7, 0, 0, Math.PI*2);
+    ctx.ellipse(x, y + 32, 22, 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(face, 1);
 
-    if (moving){
-      ctx.strokeStyle = 'rgba(17,24,39,0.18)';
+    // motion lines
+    if (moving) {
+      ctx.strokeStyle = 'rgba(17,24,39,0.20)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(-jesper.r*1.8, 8); ctx.lineTo(-jesper.r*2.6, 4);
-      ctx.moveTo(-jesper.r*1.8, 16); ctx.lineTo(-jesper.r*2.8, 16);
+      ctx.moveTo(-30, 10); ctx.lineTo(-44, 6);
+      ctx.moveTo(-30, 18); ctx.lineTo(-46, 18);
       ctx.stroke();
     }
 
-    const legSwing = sit ? 0 : walk * (jesper.r * 0.65);
-    const knee = sit ? jesper.r * 0.35 : 0;
+    // legs
+    const legSwing = sit ? 0 : walk * 10;
+    const knee = sit ? 9 : 0;
+    drawLeg(-9, 18, -12 + legSwing, 36 - knee);
+    drawLeg( 9, 18,  12 - legSwing, 36 - knee);
 
-    drawLeg(-jesper.r*0.35, jesper.r*0.55, -jesper.r*0.45 + legSwing, jesper.r*1.55 - knee);
-    drawLeg( jesper.r*0.35, jesper.r*0.55,  jesper.r*0.45 - legSwing, jesper.r*1.55 - knee);
-
-    // hoodie
+    // hoodie body
     ctx.fillStyle = hood;
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 3;
-    roundRect(-jesper.r*1.05, -jesper.r*0.30, jesper.r*2.10, jesper.r*1.95, 12, true, true);
+    roundRect(-20, -6, 40, 38, 12, true, true);
 
+    // pocket
     ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    roundRect(-jesper.r*0.75, jesper.r*0.75, jesper.r*1.50, jesper.r*0.55, 10, true, false);
+    roundRect(-14, 14, 28, 12, 8, true, false);
 
-    // hood
+    // hood behind head
     ctx.fillStyle = hood;
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(0, -jesper.r*1.05, jesper.r*1.20, Math.PI*0.05, Math.PI*0.95);
+    ctx.arc(0, -26, 22, Math.PI * 0.05, Math.PI * 0.95);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
     // arms
-    const armSwing = sit ? 0 : walk * (jesper.r * 0.55);
-    drawArm(-jesper.r*1.05, jesper.r*0.20, -jesper.r*1.75, jesper.r*0.70 - armSwing);
-    drawArm( jesper.r*1.05, jesper.r*0.20,  jesper.r*1.75, jesper.r*0.70 + armSwing);
+    const armSwing = sit ? 0 : walk * 8;
+    drawArm(-20, 8, -34, 18 - armSwing);
+    drawArm( 20, 8,  34, 18 + armSwing);
 
     // head
     ctx.beginPath();
     ctx.fillStyle = skin;
     ctx.strokeStyle = '#111827';
     ctx.lineWidth = 3;
-    ctx.arc(0, -jesper.r*1.05, jesper.r*0.92, 0, Math.PI*2);
+    ctx.arc(0, -26, 16, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // hair
+    // curly hair cap + curls
     ctx.beginPath();
     ctx.fillStyle = hair;
-    ctx.arc(0, -jesper.r*1.45, jesper.r*1.00, Math.PI, 0);
+    ctx.arc(0, -36, 17, Math.PI, 0);
     ctx.closePath();
     ctx.fill();
 
     ctx.strokeStyle = hairH;
     ctx.lineWidth = 2.2;
-    for (let i = -1; i <= 1; i++){
+    for (let i = -12; i <= 12; i += 6) {
       ctx.beginPath();
-      ctx.arc(i * jesper.r*0.45, -jesper.r*1.75, jesper.r*0.22, 0, Math.PI*2);
+      ctx.arc(i, -42, 3.6, 0, Math.PI * 2);
       ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.strokeStyle = hair;
-    ctx.lineWidth = 3;
-    ctx.arc(-jesper.r*0.85, -jesper.r*1.05, jesper.r*0.28, Math.PI*0.2, Math.PI*1.5);
-    ctx.stroke();
 
-    // glasses
-    const g = ctx.createLinearGradient(-jesper.r, -jesper.r*1.55, jesper.r, -jesper.r*0.70);
-    g.addColorStop(0.00, 'rgba(20,20,20,0.95)');
-    g.addColorStop(0.35, 'rgba(120,74,36,0.95)');
-    g.addColorStop(0.70, 'rgba(210,190,150,0.95)');
-    g.addColorStop(1.00, 'rgba(20,20,20,0.95)');
+    // tortoiseshell glasses
+    const gg = ctx.createLinearGradient(-18, -34, 18, -18);
+    gg.addColorStop(0.00, 'rgba(20,20,20,0.95)');
+    gg.addColorStop(0.35, 'rgba(120,74,36,0.95)');
+    gg.addColorStop(0.70, 'rgba(210,190,150,0.95)');
+    gg.addColorStop(1.00, 'rgba(20,20,20,0.95)');
 
-    ctx.strokeStyle = g;
-    ctx.lineWidth = 3.6;
-    circleStroke(-jesper.r*0.42, -jesper.r*1.12, jesper.r*0.40);
-    circleStroke( jesper.r*0.42, -jesper.r*1.12, jesper.r*0.40);
+    ctx.strokeStyle = gg;
+    ctx.lineWidth = 3.8;
+    circleStroke(-7, -28, 7.0);
+    circleStroke( 7, -28, 7.0);
+
     ctx.lineWidth = 3.0;
     ctx.beginPath();
-    ctx.moveTo(-jesper.r*0.10, -jesper.r*1.12);
-    ctx.lineTo( jesper.r*0.10, -jesper.r*1.12);
+    ctx.moveTo(-1.6, -28);
+    ctx.lineTo( 1.6, -28);
     ctx.stroke();
 
     // eyes
     ctx.fillStyle = '#111827';
-    circleFill(-jesper.r*0.30, -jesper.r*1.08, jesper.r*0.12);
-    circleFill( jesper.r*0.30, -jesper.r*1.08, jesper.r*0.12);
+    circleFill(-5, -28, 2.2);
+    circleFill( 5, -28, 2.2);
 
     // mouth
     ctx.strokeStyle = 'rgba(17,24,39,0.85)';
     ctx.lineWidth = 2.6;
     ctx.beginPath();
-    if (sit){
-      ctx.moveTo(-jesper.r*0.24, -jesper.r*0.78);
-      ctx.lineTo( jesper.r*0.24, -jesper.r*0.78);
-    } else {
-      ctx.arc(0, -jesper.r*0.78, jesper.r*0.25, 0.12*Math.PI, 0.88*Math.PI);
-    }
+    if (sit) { ctx.moveTo(-4, -18); ctx.lineTo(4, -18); }
+    else { ctx.arc(0, -18, 4, 0.12 * Math.PI, 0.88 * Math.PI); }
     ctx.stroke();
 
-    // name
+    // label
     ctx.font = '900 12px ui-monospace, monospace';
     ctx.fillStyle = 'rgba(17,24,39,0.55)';
     ctx.textAlign = 'center';
-    ctx.fillText('JESPER', 0, -jesper.r*2.45);
+    ctx.fillText('JESPER', 0, -56);
 
     ctx.restore();
 
-    function circleStroke(cx, cy, r){
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI*2);
-      ctx.stroke();
-    }
-    function circleFill(cx, cy, r){
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI*2);
-      ctx.fill();
-    }
-    function drawLeg(hipX, hipY, footX, footY){
+    function drawLeg(hipX, hipY, footX, footY) {
       ctx.beginPath();
       ctx.strokeStyle = pants;
       ctx.lineWidth = 10;
@@ -905,245 +760,349 @@
       ctx.fillStyle = shoe;
       ctx.strokeStyle = '#111827';
       ctx.lineWidth = 2.5;
-      roundRect(footX - jesper.r*0.65, footY - 7, jesper.r*1.30, 14, 7, true, true);
+      roundRect(footX - 13, footY - 7, 26, 14, 7, true, true);
 
       ctx.strokeStyle = 'rgba(0,0,0,0.25)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(footX - jesper.r*0.52, footY + 4);
-      ctx.lineTo(footX + jesper.r*0.52, footY + 4);
+      ctx.moveTo(footX - 10, footY + 4);
+      ctx.lineTo(footX + 10, footY + 4);
       ctx.stroke();
     }
-    function drawArm(x1,y1,x2,y2){
+
+    function drawArm(x1, y1, x2, y2) {
       ctx.beginPath();
       ctx.strokeStyle = hood;
       ctx.lineWidth = 11;
       ctx.lineCap = 'round';
-      ctx.moveTo(x1,y1);
-      ctx.lineTo(x2,y2);
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
       ctx.stroke();
 
       ctx.beginPath();
       ctx.fillStyle = 'rgba(255,235,190,0.8)';
       ctx.strokeStyle = '#111827';
       ctx.lineWidth = 2;
-      ctx.arc(x2, y2, 4.6, 0, Math.PI*2);
+      ctx.arc(x2, y2, 4.6, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
+
+    function circleStroke(cx, cy, r) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    function circleFill(cx, cy, r) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
-  function drawJoystick(){
-    const bx = state.joy.sx;
-    const by = state.joy.sy;
+  function drawJoystick() {
+    const bx = state.joy.startX;
+    const by = state.joy.startY;
     const kx = bx + state.joy.dx;
     const ky = by + state.joy.dy;
 
-    ctx.save();
-    ctx.globalAlpha = 0.92;
-
-    ctx.fillStyle = 'rgba(17,24,39,0.06)';
-    ctx.strokeStyle = 'rgba(17,24,39,0.30)';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(bx, by, 28, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = 'rgba(17,24,39,0.07)';
+    ctx.strokeStyle = 'rgba(17,24,39,0.35)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(bx, by, 26, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
     ctx.fillStyle = 'rgba(37,99,235,0.18)';
     ctx.strokeStyle = 'rgba(17,24,39,0.55)';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(kx, ky, 18, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-
-    ctx.restore();
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(kx, ky, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
-  // ====== Wonder scene ======
-  let wonderInit = false;
-  let snowT = 0;
-
-  function initWonderSnow(){
-    state.snow = [];
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const n = 120;
-    for (let i=0; i<n; i++){
+  // ===== Wonder (pretty winter card) =====
+  function ensureSnowParticles() {
+    if (state.snow.length) return;
+    for (let i = 0; i < 140; i++) {
       state.snow.push({
-        x: Math.random()*W,
-        y: Math.random()*H,
-        r: 0.8 + Math.random()*2.2,
-        s: 18 + Math.random()*60,
-        a: 0.35 + Math.random()*0.55
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        r: 0.8 + Math.random() * 2.2,
+        s: 18 + Math.random() * 80,
+        a: 0.25 + Math.random() * 0.70
       });
     }
   }
 
-  function drawWonderScene(force){
-    if (!force && wonder.classList.contains('hidden')) return;
-
-    if (!wonderInit){
-      wonderInit = true;
-      initWonderSnow();
-    }
+  function drawWonderScene() {
+    if (!wctx || !wonderCanvas) return;
+    ensureSnowParticles();
 
     const W = window.innerWidth;
     const H = window.innerHeight;
 
-    // background gradient
+    // gradient sky
     const g = wctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#0b1026');
-    g.addColorStop(0.55, '#0b3b78');
-    g.addColorStop(1, '#e6f3ff');
+    g.addColorStop(1, '#1d4ed8');
     wctx.fillStyle = g;
-    wctx.fillRect(0,0,W,H);
+    wctx.fillRect(0, 0, W, H);
 
     // moon
-    wctx.globalAlpha = 0.9;
-    wctx.fillStyle = '#ffffff';
+    wctx.globalAlpha = 0.95;
+    wctx.fillStyle = 'rgba(255,255,255,0.92)';
     wctx.beginPath();
-    wctx.arc(W*0.78, H*0.22, 46, 0, Math.PI*2);
+    wctx.arc(W * 0.78, H * 0.22, 42, 0, Math.PI * 2);
     wctx.fill();
 
-    wctx.globalAlpha = 0.85;
-    wctx.fillStyle = 'rgba(11,16,38,0.9)';
+    wctx.globalAlpha = 0.18;
     wctx.beginPath();
-    wctx.arc(W*0.80, H*0.20, 46, 0, Math.PI*2);
+    wctx.arc(W * 0.78, H * 0.22, 88, 0, Math.PI * 2);
     wctx.fill();
 
-    // hills
+    // snow hills
     wctx.globalAlpha = 1;
-    wctx.fillStyle = '#d7efff';
+    wctx.fillStyle = 'rgba(255,255,255,0.10)';
     wctx.beginPath();
-    wctx.ellipse(W*0.32, H*0.86, W*0.55, H*0.18, 0, 0, Math.PI*2);
+    wctx.moveTo(0, H * 0.78);
+    wctx.quadraticCurveTo(W * 0.35, H * 0.70, W * 0.60, H * 0.80);
+    wctx.quadraticCurveTo(W * 0.82, H * 0.88, W, H * 0.78);
+    wctx.lineTo(W, H);
+    wctx.lineTo(0, H);
+    wctx.closePath();
     wctx.fill();
 
-    wctx.fillStyle = '#bfe6ff';
+    wctx.fillStyle = 'rgba(255,255,255,0.18)';
     wctx.beginPath();
-    wctx.ellipse(W*0.72, H*0.90, W*0.60, H*0.20, 0, 0, Math.PI*2);
+    wctx.moveTo(0, H * 0.86);
+    wctx.quadraticCurveTo(W * 0.45, H * 0.78, W, H * 0.88);
+    wctx.lineTo(W, H);
+    wctx.lineTo(0, H);
+    wctx.closePath();
     wctx.fill();
 
     // cozy cabin
-    const cx = W*0.22, cy = H*0.70;
-    wctx.fillStyle = 'rgba(255,255,255,0.92)';
-    wctx.strokeStyle = 'rgba(0,0,0,0.30)';
-    wctx.lineWidth = 4;
-    roundRectW(cx, cy, 160, 110, 18, true, true);
+    const cx = W * 0.18, cy = H * 0.62;
+    wctx.fillStyle = 'rgba(255,255,255,0.09)';
+    wctx.fillRect(cx, cy, 170, 110);
 
-    // roof
     wctx.fillStyle = 'rgba(11,16,38,0.85)';
     wctx.beginPath();
-    wctx.moveTo(cx-14, cy+14);
-    wctx.lineTo(cx+80, cy-46);
-    wctx.lineTo(cx+174, cy+14);
+    wctx.moveTo(cx - 14, cy + 14);
+    wctx.lineTo(cx + 85, cy - 52);
+    wctx.lineTo(cx + 184, cy + 14);
     wctx.closePath();
     wctx.fill();
 
     // window light
     wctx.fillStyle = 'rgba(255,220,120,0.95)';
-    roundRectW(cx+98, cy+42, 38, 30, 8, true, false);
-    wctx.fillStyle = 'rgba(255,220,120,0.40)';
+    wctx.fillRect(cx + 104, cy + 44, 38, 30);
+    wctx.globalAlpha = 0.30;
     wctx.beginPath();
-    wctx.ellipse(cx+118, cy+70, 64, 44, 0, 0, Math.PI*2);
+    wctx.ellipse(cx + 123, cy + 70, 66, 44, 0, 0, Math.PI * 2);
     wctx.fill();
-
-    // pine trees
-    drawPine(W*0.60, H*0.72, 140);
-    drawPine(W*0.72, H*0.76, 170);
-    drawPine(W*0.52, H*0.80, 120);
-
-    // title text
     wctx.globalAlpha = 1;
-    wctx.fillStyle = 'rgba(255,255,255,0.95)';
-    wctx.font = '1000 26px ui-rounded, system-ui, -apple-system, sans-serif';
-    wctx.textAlign = 'center';
-    wctx.fillText('GOD JUL, JESPER', W*0.5, H*0.12);
 
-    wctx.fillStyle = 'rgba(255,255,255,0.86)';
-    wctx.font = '900 14px ui-monospace, monospace';
-    wctx.fillText('The Return of the Office Legend', W*0.5, H*0.15);
+    // pine silhouettes
+    function pine(x, y, h) {
+      wctx.save();
+      wctx.translate(x, y);
+      wctx.fillStyle = 'rgba(220,252,231,0.22)';
+      wctx.beginPath();
+      wctx.moveTo(0, -h);
+      wctx.lineTo(-h * 0.55, -h * 0.10);
+      wctx.lineTo(h * 0.55, -h * 0.10);
+      wctx.closePath();
+      wctx.fill();
+      wctx.restore();
+    }
+    pine(W * 0.60, H * 0.72, 150);
+    pine(W * 0.70, H * 0.77, 190);
+    pine(W * 0.50, H * 0.80, 130);
 
-    // snow
-    snowT += 1/60;
-    state.snow.forEach(p => {
-      p.y += (p.s / 60);
-      p.x += Math.sin((p.y + snowT*50) / 40) * 0.4;
-      if (p.y > H + 10){ p.y = -10; p.x = Math.random()*W; }
+    // snow particles
+    state.snowT += 1 / 60;
+    for (const p of state.snow) {
+      p.y += p.s / 60;
+      p.x += Math.sin((p.y + state.snowT * 50) / 40) * 0.4;
+      if (p.y > H + 10) { p.y = -10; p.x = Math.random() * W; }
       wctx.globalAlpha = p.a;
       wctx.fillStyle = '#ffffff';
       wctx.beginPath();
-      wctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      wctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       wctx.fill();
-    });
+    }
     wctx.globalAlpha = 1;
 
-    function drawPine(x, y, h){
-      wctx.save();
-      wctx.translate(x, y);
+    // headline (kept short)
+    wctx.fillStyle = 'rgba(255,255,255,0.95)';
+    wctx.font = '1000 26px ui-rounded, system-ui, -apple-system, sans-serif';
+    wctx.textAlign = 'center';
+    wctx.fillText('GOD JUL, JESPER', W * 0.5, H * 0.12);
 
-      wctx.fillStyle = 'rgba(220,252,231,0.95)';
-      wctx.strokeStyle = 'rgba(0,0,0,0.28)';
-      wctx.lineWidth = 4;
+    wctx.fillStyle = 'rgba(255,255,255,0.86)';
+    wctx.font = '900 14px ui-monospace, monospace';
+    wctx.fillText('The Return of the Office Legend', W * 0.5, H * 0.15);
+  }
 
-      tri(0, -h, -h*0.55, -h*0.15, h*0.55, -h*0.15);
-      tri(0, -h*0.70, -h*0.62, h*0.05, h*0.62, h*0.05);
-      tri(0, -h*0.35, -h*0.70, h*0.25, h*0.70, h*0.25);
+  // ===== Game update/draw =====
+  function update(dt, tMs) {
+    maybeResizeFromSafariUI();
 
-      wctx.fillStyle = 'rgba(209,213,219,0.95)';
-      roundRectW(-h*0.10, h*0.22, h*0.20, h*0.18, 10, true, true);
+    // joystick -> movement
+    let ax = 0, ay = 0;
+    if (state.joy.active) {
+      const jx = state.joy.dx / 46;
+      const jy = state.joy.dy / 46;
+      if (Math.abs(jx) > 0.12) ax = jx;
+      if (Math.abs(jy) > 0.12) ay = jy;
+    }
 
-      wctx.restore();
+    // normalize
+    const mag = Math.hypot(ax, ay);
+    if (mag > 1) { ax /= mag; ay /= mag; }
 
-      function tri(ax, ay, bx, by, cx, cy){
-        wctx.beginPath();
-        wctx.moveTo(ax, ay);
-        wctx.lineTo(bx, by);
-        wctx.lineTo(cx, cy);
-        wctx.closePath();
-        wctx.fill();
-        wctx.stroke();
+    const speed = state.sitting ? 0 : 230;
+    jesper.vx = ax * speed;
+    jesper.vy = ay * speed;
+
+    if (Math.abs(jesper.vx) > 1) jesper.face = Math.sign(jesper.vx);
+
+    const oldX = jesper.x, oldY = jesper.y;
+    jesper.x += jesper.vx * dt;
+    jesper.y += jesper.vy * dt;
+
+    // clamp to room
+    jesper.x = clamp(jesper.x, ROOM.x + jesper.r, ROOM.x + ROOM.w - jesper.r);
+    jesper.y = clamp(jesper.y, ROOM.y + jesper.r, ROOM.y + ROOM.h - jesper.r);
+
+    // motion puffs
+    const moved = dist(oldX, oldY, jesper.x, jesper.y);
+    if (!state.sitting && moved > 0.5 && Math.random() < 0.40) {
+      addPuff(jesper.x - jesper.face * 10, jesper.y + 20, 0.45);
+    }
+
+    // ornaments physics
+    const friction = Math.pow(0.10, dt);
+    const blocks = [props.table, props.chair, props.tree];
+
+    for (const o of ornaments) {
+      if (state.dragging === o) continue;
+
+      o.x += o.vx * dt;
+      o.y += o.vy * dt;
+
+      o.vx *= friction;
+      o.vy *= friction;
+      if (Math.abs(o.vx) < 2) o.vx = 0;
+      if (Math.abs(o.vy) < 2) o.vy = 0;
+
+      resolveWallCircle(o);
+      for (const b of blocks) resolveRectBlockCircle(o, b);
+
+      // collide with Jesper
+      const d = dist(o.x, o.y, jesper.x, jesper.y);
+      const minD = o.r + jesper.r;
+      if (d < minD) {
+        const nx = (o.x - jesper.x) / Math.max(d, 1);
+        const ny = (o.y - jesper.y) / Math.max(d, 1);
+        const push = (minD - d) * 1.05;
+        o.x += nx * push; o.y += ny * push;
+        o.vx += nx * 140; o.vy += ny * 140;
       }
     }
 
-    function roundRectW(x,y,w,h,r, fill, stroke){
-      const rr = Math.min(r, w/2, h/2);
-      wctx.beginPath();
-      wctx.moveTo(x+rr, y);
-      wctx.arcTo(x+w, y, x+w, y+h, rr);
-      wctx.arcTo(x+w, y+h, x, y+h, rr);
-      wctx.arcTo(x, y+h, x, y, rr);
-      wctx.arcTo(x, y, x+w, y, rr);
-      wctx.closePath();
-      if (fill) wctx.fill();
-      if (stroke) wctx.stroke();
+    // puffs update
+    for (const p of state.puffs) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.a -= 1.8 * dt;
+    }
+    state.puffs = state.puffs.filter(p => p.a > 0);
+
+    // if wonder open, animate wonder canvas too
+    if (wonder && !wonder.classList.contains('hidden')) {
+      drawWonderScene();
     }
   }
 
-  function roundRectW(x,y,w,h,r, fill, stroke){
-    const rr = Math.min(r, w/2, h/2);
-    wctx.beginPath();
-    wctx.moveTo(x+rr, y);
-    wctx.arcTo(x+w, y, x+w, y+h, rr);
-    wctx.arcTo(x+w, y+h, x, y+h, rr);
-    wctx.arcTo(x, y+h, x, y, rr);
-    wctx.arcTo(x, y, x+w, y, rr);
-    wctx.closePath();
-    if (fill) wctx.fill();
-    if (stroke) wctx.stroke();
+  function draw(tMs) {
+    // clear (CSS pixel coordinates)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, view.cssW, view.cssH);
+
+    // draw world
+    ctx.save();
+    ctx.translate(view.ox, view.oy);
+    ctx.scale(view.scale, view.scale);
+
+    // room background
+    ctx.fillStyle = '#f3f4f6';
+    ctx.fillRect(ROOM.x, ROOM.y, ROOM.w, ROOM.h);
+
+    // border
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(ROOM.x, ROOM.y, ROOM.w, ROOM.h);
+
+    // baseboard for depth
+    ctx.strokeStyle = 'rgba(17,24,39,0.22)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ROOM.x, ROOM.y + ROOM.h - 26);
+    ctx.lineTo(ROOM.x + ROOM.w, ROOM.y + ROOM.h - 26);
+    ctx.stroke();
+
+    // label
+    ctx.fillStyle = 'rgba(17,24,39,0.25)';
+    ctx.font = '900 12px ui-monospace, monospace';
+    ctx.fillText('RUM 01 – EXISTENS / JUL / KAFFE', ROOM.x + 10, ROOM.y + ROOM.h - 10);
+
+    // puffs behind furniture
+    for (const p of state.puffs) {
+      ctx.globalAlpha = Math.max(0, p.a) * 0.30;
+      ctx.fillStyle = '#111827';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // furniture
+    drawTree(props.tree, tMs);
+    drawTable(props.table);
+    drawChair(props.chair);
+
+    // ornaments (depth)
+    ornaments.slice().sort((a, b) => a.y - b.y).forEach(drawOrnament);
+
+    // Jesper on top
+    drawJesper(tMs);
+
+    // joystick overlay
+    if (state.joy.active && !state.dragging) drawJoystick();
+
+    ctx.restore();
   }
 
-  // ====== Loop ======
+  // ===== Loop =====
   let last = performance.now();
-  function loop(t){
+  function loop(t) {
     const dt = Math.min(0.033, (t - last) / 1000);
     last = t;
 
-    if (wonder.classList.contains('hidden')){
+    if (wonder && !wonder.classList.contains('hidden')) {
+      // still animate wonder, but keep room frozen behind overlay
+      drawWonderScene();
+    } else {
       update(dt, t);
       draw(t);
-    } else {
-      drawWonderScene(false);
     }
+
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
 
-  // ====== First hint ======
+  // First hint
   setTimeout(() => toast('Tips: SPARKA ⏰ → 🍬 → ⭐ och SITT på stolen.'), 900);
+
 })();
