@@ -1,9 +1,12 @@
 (() => {
-  // ====== Countdown (Stockholm, 7 Jan 2026 06:00 CET = 05:00 UTC) ======
+  // =========================
+  // Countdown (Stockholm/CET)
+  // 7 Jan 2026 06:00 CET = 05:00 UTC
+  // =========================
   const countdownEl = document.getElementById("countdownValue");
-  const TARGET_UTC_MS = Date.UTC(2026, 0, 7, 5, 0, 0); // Jan=0, 05:00Z == 06:00 CET
+  const TARGET_UTC_MS = Date.UTC(2026, 0, 7, 5, 0, 0);
 
-  function pad(n) { return String(n).padStart(2, "0"); }
+  function pad2(n) { return String(n).padStart(2, "0"); }
 
   function tickCountdown() {
     const now = Date.now();
@@ -12,20 +15,57 @@
       countdownEl.textContent = "NU. ☕";
       return;
     }
-    const totalSec = Math.floor(diff / 1000);
-    const days = Math.floor(totalSec / 86400);
-    const hrs = Math.floor((totalSec % 86400) / 3600);
-    const mins = Math.floor((totalSec % 3600) / 60);
-    const secs = totalSec % 60;
-    countdownEl.textContent = `${days}d ${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+    const total = Math.floor(diff / 1000);
+    const d = Math.floor(total / 86400);
+    const h = Math.floor((total % 86400) / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    countdownEl.textContent = `${d}d ${pad2(h)}:${pad2(m)}:${pad2(s)}`;
   }
   setInterval(tickCountdown, 1000);
   tickCountdown();
 
-  // ====== Canvas setup ======
+  // =========================
+  // DOM
+  // =========================
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d", { alpha: false });
 
+  const bubbleEl = document.getElementById("bubble");
+  const toastEl = document.getElementById("hintToast");
+
+  const helpBtn = document.getElementById("helpBtn");
+  const helpModal = document.getElementById("helpModal");
+  const closeHelpBtn = document.getElementById("closeHelpBtn");
+
+  const soundBtn = document.getElementById("soundBtn");
+
+  const wonder = document.getElementById("wonder");
+  const closeWonderBtn = document.getElementById("closeWonderBtn");
+
+  const kickBtn = document.getElementById("kickBtn");
+  const interactBtn = document.getElementById("interactBtn");
+
+  function showBubble(text, ms = 1800) {
+    bubbleEl.textContent = text;
+    bubbleEl.classList.remove("hidden");
+    clearTimeout(showBubble._t);
+    showBubble._t = setTimeout(() => bubbleEl.classList.add("hidden"), ms);
+  }
+
+  function toast(text, ms = 1300) {
+    toastEl.textContent = text;
+    toastEl.classList.remove("hidden");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => toastEl.classList.add("hidden"), ms);
+  }
+
+  if (helpBtn && helpModal) helpBtn.addEventListener("click", () => helpModal.classList.remove("hidden"));
+  if (closeHelpBtn && helpModal) closeHelpBtn.addEventListener("click", () => helpModal.classList.add("hidden"));
+
+  // =========================
+  // Canvas resize
+  // =========================
   function resizeCanvasToCSS() {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -33,38 +73,12 @@
     canvas.height = Math.round(rect.height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  window.addEventListener("resize", resizeCanvasToCSS);
+  window.addEventListener("resize", () => { resizeCanvasToCSS(); placeProps(); });
   resizeCanvasToCSS();
 
-  // ====== UI elements ======
-  const bubbleEl = document.getElementById("bubble");
-  const toastEl = document.getElementById("hintToast");
-  const helpBtn = document.getElementById("helpBtn");
-  const helpModal = document.getElementById("helpModal");
-  const closeHelpBtn = document.getElementById("closeHelpBtn");
-  const soundBtn = document.getElementById("soundBtn");
-
-  const wonder = document.getElementById("wonder");
-  const closeWonderBtn = document.getElementById("closeWonderBtn");
-
-  function showBubble(text, ms = 2200) {
-    bubbleEl.textContent = text;
-    bubbleEl.classList.remove("hidden");
-    clearTimeout(showBubble._t);
-    showBubble._t = setTimeout(() => bubbleEl.classList.add("hidden"), ms);
-  }
-
-  function toast(text, ms = 1600) {
-    toastEl.textContent = text;
-    toastEl.classList.remove("hidden");
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => toastEl.classList.add("hidden"), ms);
-  }
-
-  helpBtn.addEventListener("click", () => helpModal.classList.remove("hidden"));
-  closeHelpBtn.addEventListener("click", () => helpModal.classList.add("hidden"));
-
-  // ====== Sound (WebAudio “gubbljud” + tiny jingle) ======
+  // =========================
+  // Sound (WebAudio: gubbljud)
+  // =========================
   let audioEnabled = false;
   let audioCtx = null;
 
@@ -76,29 +90,32 @@
   function playGrunt(intensity = 1) {
     if (!audioEnabled) return;
     ensureAudio();
+
     const now = audioCtx.currentTime;
 
     const o1 = audioCtx.createOscillator();
     const o2 = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     const f = audioCtx.createBiquadFilter();
+
     f.type = "bandpass";
-    f.frequency.value = 520 + Math.random() * 240;
-    f.Q.value = 1.2 + Math.random() * 2.4;
+    f.frequency.value = 380 + Math.random() * 380;
+    f.Q.value = 1.0 + Math.random() * 2.2;
 
     o1.type = Math.random() < 0.5 ? "sawtooth" : "square";
     o2.type = "sine";
 
-    const base = 130 + Math.random() * 80;
-    o1.frequency.setValueAtTime(base * (1.1 + 0.25 * intensity), now);
-    o1.frequency.exponentialRampToValueAtTime(base * 0.7, now + 0.18);
+    const base = 120 + Math.random() * 90;
+
+    o1.frequency.setValueAtTime(base * (1.0 + 0.30 * intensity), now);
+    o1.frequency.exponentialRampToValueAtTime(base * 0.65, now + 0.16);
 
     o2.frequency.setValueAtTime(base * 2.0, now);
-    o2.frequency.exponentialRampToValueAtTime(base * 1.2, now + 0.18);
+    o2.frequency.exponentialRampToValueAtTime(base * 1.25, now + 0.16);
 
     g.gain.setValueAtTime(0.0001, now);
     g.gain.exponentialRampToValueAtTime(0.12 * intensity, now + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.20);
 
     o1.connect(f);
     o2.connect(f);
@@ -107,15 +124,15 @@
 
     o1.start(now);
     o2.start(now);
-    o1.stop(now + 0.24);
-    o2.stop(now + 0.24);
+    o1.stop(now + 0.22);
+    o2.stop(now + 0.22);
   }
 
   function playJingle() {
     if (!audioEnabled) return;
     ensureAudio();
-    const now = audioCtx.currentTime;
 
+    const now = audioCtx.currentTime;
     const notes = [523.25, 659.25, 783.99, 659.25, 523.25]; // C E G E C
     notes.forEach((freq, i) => {
       const t = now + i * 0.11;
@@ -133,101 +150,98 @@
     });
   }
 
-  soundBtn.addEventListener("click", async () => {
-    audioEnabled = !audioEnabled;
-    soundBtn.textContent = audioEnabled ? "🔊 Ljud: PÅ" : "🔊 Ljud: AV";
+  if (soundBtn) {
+    soundBtn.addEventListener("click", async () => {
+      audioEnabled = !audioEnabled;
+      soundBtn.textContent = audioEnabled ? "🔊 Ljud: PÅ" : "🔊 Ljud: AV";
 
-    if (audioEnabled) {
-      ensureAudio();
-      if (audioCtx.state === "suspended") await audioCtx.resume();
-      toast("Ljud aktiverat. Jesper är… auditiv.");
-      playGrunt(1.1);
-    } else {
-      toast("Ljud av. Jesper får vara tyst en stund.");
-    }
-  });
+      if (audioEnabled) {
+        ensureAudio();
+        if (audioCtx.state === "suspended") await audioCtx.resume();
+        toast("Ljud på. Jesper är… auditiv.");
+        playGrunt(1.1);
+      } else {
+        toast("Ljud av. Frid i rummet.");
+      }
+    });
+  }
 
-  // ====== Game world (torftig room) ======
+  // =========================
+  // State
+  // =========================
   const state = {
     keys: { up:false, down:false, left:false, right:false },
-    lastAction: 0,
     sitting: false,
+    lastAction: 0,
 
-    // secret-progress
-    secret: {
-      step: 0,
-      // “sparkordning”: KLOCKA -> GODIS -> STJÄRNA -> SITT
-      // (med vaga hintar från Jesper)
-      unlocked: false
-    },
+    joy: { active:false, startX:0, startY:0, dx:0, dy:0 },
 
-    konami: [],
+    secret: { step: 0, unlocked: false }, // ⏰ -> 🍬 -> ⭐ -> sit
   };
 
-  // Room bounds (in CSS pixels)
+  // =========================
+  // World
+  // =========================
+  function getRect() {
+    return canvas.getBoundingClientRect();
+  }
+
   function room() {
-    const rect = canvas.getBoundingClientRect();
+    const rect = getRect();
     const w = rect.width;
     const h = rect.height;
-    // closed room padding
-    return { x: 18, y: 24, w: w - 36, h: h - 48 };
+    return { x: 16, y: 16, w: w - 32, h: h - 32 };
   }
 
   const jesper = {
     x: 80, y: 120,
-    r: 16,
+    r: 18,
     vx: 0, vy: 0
   };
 
-  // Minimal furniture + props
   const props = {
-    chair: { x: 70, y: 0, w: 58, h: 58 },
-    table: { x: 0, y: 0, w: 110, h: 58 },
-    tree:  { x: 0, y: 0, w: 64, h: 88 },
+    table: { x:0, y:0, w:130, h:56 },
+    chair: { x:0, y:0, w:72,  h:72 },
+    tree:  { x:0, y:0, w:84,  h:118 }
   };
 
-  // Kickable ornaments
+  // 3 pynt (färre, tydligare)
   const ornaments = [
-    { id:"clock",  label:"⏰", x: 0, y: 0, r: 14, vx:0, vy:0, color:"#FFEB6B", name:"klocka" },
-    { id:"candy",  label:"🍬", x: 0, y: 0, r: 14, vx:0, vy:0, color:"#ff4fd8", name:"godis" },
-    { id:"star",   label:"⭐", x: 0, y: 0, r: 14, vx:0, vy:0, color:"#45fff1", name:"stjärna" },
-    { id:"ball",   label:"🔴", x: 0, y: 0, r: 14, vx:0, vy:0, color:"#ff6b6b", name:"kula" },
-    { id:"sock",   label:"🧦", x: 0, y: 0, r: 14, vx:0, vy:0, color:"#7CFF6B", name:"strumpa" },
+    { id:"clock", label:"⏰", name:"klocka", x:0,y:0,r:18,vx:0,vy:0, base:"#fde047" },
+    { id:"candy", label:"🍬", name:"godis",  x:0,y:0,r:18,vx:0,vy:0, base:"#fb7185" },
+    { id:"star",  label:"⭐", name:"stjärna",x:0,y:0,r:18,vx:0,vy:0, base:"#60a5fa" }
   ];
 
   function placeProps() {
     const R = room();
 
-    // place table left-middle, chair near it, tree right-top
-    props.table.x = R.x + 24;
-    props.table.y = R.y + R.h * 0.52;
+    props.table.x = R.x + 22;
+    props.table.y = R.y + R.h * 0.58;
 
-    props.chair.x = props.table.x + props.table.w + 18;
+    props.chair.x = props.table.x + props.table.w + 26;
     props.chair.y = props.table.y + 6;
 
-    props.tree.x = R.x + R.w - props.tree.w - 26;
-    props.tree.y = R.y + 40;
+    props.tree.x = R.x + R.w - props.tree.w - 20;
+    props.tree.y = R.y + 28;
 
-    // ornaments around center
-    const cx = R.x + R.w * 0.55;
-    const cy = R.y + R.h * 0.35;
+    // ornaments center-ish
+    const cx = R.x + R.w * 0.60;
+    const cy = R.y + R.h * 0.36;
 
-    ornaments.forEach((o, i) => {
-      o.x = cx + (i - 2) * 34;
-      o.y = cy + (i % 2 ? 26 : -18);
-      o.vx = 0; o.vy = 0;
-    });
+    ornaments[0].x = cx - 70; ornaments[0].y = cy + 5;   ornaments[0].vx=0; ornaments[0].vy=0;
+    ornaments[1].x = cx - 10; ornaments[1].y = cy - 18;  ornaments[1].vx=0; ornaments[1].vy=0;
+    ornaments[2].x = cx + 55; ornaments[2].y = cy + 14;  ornaments[2].vx=0; ornaments[2].vy=0;
 
-    // jesper start
-    jesper.x = R.x + 72;
-    jesper.y = R.y + 120;
-    jesper.vx = 0; jesper.vy = 0;
+    jesper.x = R.x + 90;
+    jesper.y = R.y + 140;
+    jesper.vx = 0;
+    jesper.vy = 0;
   }
-
-  window.addEventListener("resize", placeProps);
   placeProps();
 
-  // ====== Controls (touch buttons) ======
+  // =========================
+  // Input: D-pad buttons
+  // =========================
   document.querySelectorAll(".pad").forEach(btn => {
     const k = btn.dataset.key;
     const isDir = (k === "up" || k === "down" || k === "left" || k === "right");
@@ -235,8 +249,7 @@
     const down = (e) => {
       e.preventDefault();
       if (isDir) state.keys[k] = true;
-      if (k === "center") showBubble("😐 …", 600);
-      if (isDir) pushKonami(k);
+      if (k === "center") showBubble("…", 500);
     };
     const up = (e) => {
       e.preventDefault();
@@ -250,216 +263,210 @@
     btn.addEventListener("mouseleave", up);
   });
 
-  const kickBtn = document.getElementById("kickBtn");
-  const interactBtn = document.getElementById("interactBtn");
+  if (kickBtn) kickBtn.addEventListener("click", () => doKick());
+  if (interactBtn) interactBtn.addEventListener("click", () => doSit());
 
-  kickBtn.addEventListener("click", () => doKick());
-  interactBtn.addEventListener("click", () => doSit());
-
-  // Also allow dragging ornaments (tacky power)
+  // =========================
+  // Input: canvas pointer
+  // - drag ornaments if grabbed
+  // - otherwise: joystick movement
+  // =========================
   let dragging = null;
+
   canvas.addEventListener("pointerdown", (e) => {
     const p = getPointerPos(e);
-    const o = ornaments.find(x => dist(x.x, x.y, p.x, p.y) <= x.r + 8);
+    const o = ornaments.find(x => dist(x.x, x.y, p.x, p.y) <= x.r + 10);
+
     if (o) {
       dragging = o;
       o.vx = 0; o.vy = 0;
       canvas.setPointerCapture(e.pointerId);
-      toast("Flyttar pynt… (varför?)");
+      toast("Flyttar pynt (varför?)");
       playGrunt(0.8);
+      return;
     }
-  });
+
+    // joystick
+    state.joy.active = true;
+    state.joy.startX = p.x;
+    state.joy.startY = p.y;
+    state.joy.dx = 0;
+    state.joy.dy = 0;
+    canvas.setPointerCapture(e.pointerId);
+  }, { passive:false });
+
   canvas.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
     const p = getPointerPos(e);
-    dragging.x = p.x;
-    dragging.y = p.y;
-  });
-  canvas.addEventListener("pointerup", () => dragging = null);
-  canvas.addEventListener("pointercancel", () => dragging = null);
+
+    if (dragging) {
+      dragging.x = p.x;
+      dragging.y = p.y;
+      return;
+    }
+
+    if (state.joy.active) {
+      state.joy.dx = p.x - state.joy.startX;
+      state.joy.dy = p.y - state.joy.startY;
+      const max = 44;
+      state.joy.dx = clamp(state.joy.dx, -max, max);
+      state.joy.dy = clamp(state.joy.dy, -max, max);
+      return;
+    }
+  }, { passive:false });
+
+  canvas.addEventListener("pointerup", () => {
+    dragging = null;
+    state.joy.active = false;
+    state.joy.dx = 0;
+    state.joy.dy = 0;
+  }, { passive:false });
+
+  canvas.addEventListener("pointercancel", () => {
+    dragging = null;
+    state.joy.active = false;
+    state.joy.dx = 0;
+    state.joy.dy = 0;
+  }, { passive:false });
 
   function getPointerPos(e){
     const rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
-  // ====== Secret logic ======
-  // Secret combo (primär):
-  // 1) SPARKA klocka
-  // 2) SPARKA godis
-  // 3) SPARKA stjärna
-  // 4) SITT på stolen
-  //
-  // Jesper droppar hintar ibland.
+  // =========================
+  // Secret / Wonder
+  // =========================
   function advanceSecret(expectedId) {
-    const s = state.secret;
-    if (s.unlocked) return;
+    if (state.secret.unlocked) return;
 
-    const stepId = (s.step === 0) ? "clock"
-                : (s.step === 1) ? "candy"
-                : (s.step === 2) ? "star"
+    const stepId = (state.secret.step === 0) ? "clock"
+                : (state.secret.step === 1) ? "candy"
+                : (state.secret.step === 2) ? "star"
                 : null;
 
-    if (!stepId) return;
-
     if (expectedId === stepId) {
-      s.step++;
-      toast(`✅ Hemligheten känns… närmare (${s.step}/3)`);
-      playGrunt(1.1);
-
-      if (s.step === 3) {
-        showBubble("Jag känner… en julkraft. SITT. Nu.");
-      }
-    } else {
-      // mild reset, tacky frustrerande
-      s.step = 0;
-      toast("❌ Nä. Inte så. (Hemligheten surar.)");
-      showBubble("Allt var bättre innan…", 1200);
-      playGrunt(0.9);
+      state.secret.step++;
+      playGrunt(1.0);
+      toast(`Hemligheten: ${state.secret.step}/3`);
+      if (state.secret.step === 3) showBubble("Okej… SITT på stolen. Nu.");
+      return;
     }
+
+    // reset
+    state.secret.step = 0;
+    toast("Nej. Hemligheten blev kränkt.");
+    playGrunt(0.8);
   }
 
   function unlockWonder() {
     if (state.secret.unlocked) return;
     state.secret.unlocked = true;
     playJingle();
-    showBubble("…VA?! Okej. Du är värdig.");
+    showBubble("…DU KLARADE DET?!", 1400);
     wonder.classList.remove("hidden");
   }
 
-  closeWonderBtn.addEventListener("click", () => {
-    wonder.classList.add("hidden");
-    showBubble("Tillbaka i rummet. Tragiskt men tryggt.");
-  });
-
-  // Konami genväg via touch-knappar + B A (kick= B, sit = A)
-  function pushKonami(dirKey){
-    const map = { up:"U", down:"D", left:"L", right:"R" };
-    state.konami.push(map[dirKey] || "?");
-    state.konami = state.konami.slice(-10);
-    checkKonami();
-  }
-  function pushKonamiAction(letter){ // B / A
-    state.konami.push(letter);
-    state.konami = state.konami.slice(-10);
-    checkKonami();
-  }
-  function checkKonami(){
-    const seq = "U,U,D,D,L,R,L,R,B,A";
-    if (state.konami.join(",") === seq) {
-      toast("🎁 KONAMI! Du fuskade. Respekt.");
-      unlockWonder();
-    }
+  if (closeWonderBtn) {
+    closeWonderBtn.addEventListener("click", () => {
+      wonder.classList.add("hidden");
+      showBubble("Tillbaka i rummet. Enkelt. Tomt. Tryggt.");
+    });
   }
 
-  // ====== Actions ======
+  // =========================
+  // Actions
+  // =========================
   function doKick() {
     const now = performance.now();
     if (now - state.lastAction < 120) return;
     state.lastAction = now;
 
-    const reach = 52;
+    const reach = 72;
     const nearest = ornaments
       .map(o => ({ o, d: dist(jesper.x, jesper.y, o.x, o.y) }))
       .filter(x => x.d <= reach)
       .sort((a,b)=>a.d-b.d)[0];
 
     if (!nearest) {
-      showBubble("Sparkade luft. Kändes ändå rätt.");
+      showBubble("Sparkade luft. Kändes ändå produktivt.");
       playGrunt(0.7);
-      pushKonamiAction("B");
       return;
     }
 
     const o = nearest.o;
-
-    // apply impulse away from Jesper
     const dx = o.x - jesper.x;
     const dy = o.y - jesper.y;
     const len = Math.max(1, Math.hypot(dx, dy));
     const nx = dx / len;
     const ny = dy / len;
 
-    const power = 6.2 + Math.random() * 2.2;
-    o.vx += nx * power;
-    o.vy += ny * power;
+    const impulse = 420 + Math.random() * 120; // px/s
+    o.vx += nx * impulse;
+    o.vy += ny * impulse;
 
-    showBubble(`👞 *dunk* (${o.name})`);
+    showBubble(`👞 SPARK! (${o.label})`);
     playGrunt(1.0);
-
-    // advance secret if correct order
     advanceSecret(o.id);
-    pushKonamiAction("B");
   }
 
   function doSit() {
-    const R = room();
-    const chair = props.chair;
-
-    // sit if near chair
-    const inRange = aabbCircleHit(chair.x, chair.y, chair.w, chair.h, jesper.x, jesper.y, jesper.r + 8);
+    // sit only if close to chair
+    const c = props.chair;
+    const inRange = aabbCircleHit(c.x, c.y, c.w, c.h, jesper.x, jesper.y, jesper.r + 10);
 
     if (!inRange) {
       showBubble("Satt mentalt. Inte fysiskt.");
-      playGrunt(0.8);
-      pushKonamiAction("A");
+      playGrunt(0.7);
       return;
     }
 
     state.sitting = true;
-    showBubble("🪑 …Julen är en känsla. Oftast trötthet.");
-    playGrunt(0.9);
-    pushKonamiAction("A");
+    showBubble("🪑 …jul… kaffe… existens…", 1400);
+    playGrunt(0.8);
 
-    // if secret steps complete -> unlock
     if (state.secret.step === 3 && !state.secret.unlocked) {
-      toast("🎄 Kombination fullbordad!");
+      toast("Kombination fullbordad!");
       unlockWonder();
     } else if (!state.secret.unlocked) {
-      toast("Du satt. Hemligheten: inte imponerad.");
+      toast("Du satt. Hemligheten: fortfarande skeptisk.");
     }
 
-    // get up after a bit
-    setTimeout(() => state.sitting = false, 900);
+    setTimeout(() => state.sitting = false, 850);
   }
 
-  // ====== Random Jesper commentary ======
+  // =========================
+  // Idle comments (färre, tydligare)
+  // =========================
   const lines = [
-    "Jag har varit i det här rummet i… dagar. Eller år. Svårt.",
+    "Det här rummet känns… budget.",
     "Julpynt på golvet = processförbättring.",
-    "Om jag sparkar en 🍬… blir det då en avvikelse?",
-    "Kaffe är en livsstil. Också en coping.",
-    "Jag ser ljuset… nej det var bara ⭐.",
-    "Det finns en hemlighet här inne. Som alltid. Lite onödigt.",
-    "Jag saknar kontoret. (Säg inget till någon.)",
-    "Vem ställde en gran i ett rum? Vem GODKÄNDE detta?",
-    "Jag vill bara… tillbaka 7 januari. 06:00. Gryning. ☕",
-    "Allt är tyst… förutom mitt inre och den där 🔴 som rullar."
+    "Om jag sparkar ⏰… kan jag spola tiden?",
+    "Kaffe är en livsstil. Också en strategi.",
+    "Jag saknar kontoret. (Säg inget.)"
   ];
 
   function randomComment() {
-    if (wonder && !wonder.classList.contains("hidden")) return;
+    if (!wonder.classList.contains("hidden")) return;
 
-    const r = Math.random();
-    if (r < 0.35) {
+    if (Math.random() < 0.35) {
       showBubble(lines[Math.floor(Math.random() * lines.length)]);
-      playGrunt(0.65);
+      playGrunt(0.55);
     }
 
-    // hint droppers (vagt)
-    if (!state.secret.unlocked) {
-      const s = state.secret.step;
-      if (Math.random() < 0.25) {
-        if (s === 0) showBubble("Det börjar alltid med… tiden. ⏰", 1600);
-        if (s === 1) showBubble("Något sött brukar… låsa upp saker. 🍬", 1600);
-        if (s === 2) showBubble("Stjärnor visar vägen. Ibland. ⭐", 1600);
-      }
+    // mild hints
+    if (!state.secret.unlocked && Math.random() < 0.20) {
+      if (state.secret.step === 0) showBubble("⏰ känns… viktig.", 1200);
+      if (state.secret.step === 1) showBubble("🍬 är… misstänkt nyckel.", 1200);
+      if (state.secret.step === 2) showBubble("⭐ visar vägen, ibland.", 1200);
     }
   }
   setInterval(randomComment, 4200);
 
-  // ====== Physics & Collisions ======
+  // =========================
+  // Physics / collisions
+  // =========================
   function dist(ax, ay, bx, by) { return Math.hypot(ax-bx, ay-by); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
   function aabbCircleHit(x,y,w,h,cx,cy,cr){
     const px = clamp(cx, x, x + w);
@@ -467,18 +474,14 @@
     return dist(px,py,cx,cy) <= cr;
   }
 
-  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-
   function resolveWallCircle(R, o){
-    // keep circle inside room
-    if (o.x - o.r < R.x) { o.x = R.x + o.r; o.vx *= -0.65; }
-    if (o.x + o.r > R.x + R.w) { o.x = R.x + R.w - o.r; o.vx *= -0.65; }
-    if (o.y - o.r < R.y) { o.y = R.y + o.r; o.vy *= -0.65; }
-    if (o.y + o.r > R.y + R.h) { o.y = R.y + R.h - o.r; o.vy *= -0.65; }
+    if (o.x - o.r < R.x) { o.x = R.x + o.r; o.vx *= -0.55; }
+    if (o.x + o.r > R.x + R.w) { o.x = R.x + R.w - o.r; o.vx *= -0.55; }
+    if (o.y - o.r < R.y) { o.y = R.y + o.r; o.vy *= -0.55; }
+    if (o.y + o.r > R.y + R.h) { o.y = R.y + R.h - o.r; o.vy *= -0.55; }
   }
 
-  function resolveRectBlock(o, rect){
-    // simple circle-rect collision
+  function resolveRectBlockCircle(o, rect){
     if (!aabbCircleHit(rect.x, rect.y, rect.w, rect.h, o.x, o.y, o.r)) return false;
 
     const cx = clamp(o.x, rect.x, rect.x + rect.w);
@@ -489,27 +492,40 @@
     const nx = dx / len;
     const ny = dy / len;
 
-    // push out
-    o.x = cx + nx * (o.r + 0.5);
-    o.y = cy + ny * (o.r + 0.5);
+    o.x = cx + nx * (o.r + 0.6);
+    o.y = cy + ny * (o.r + 0.6);
 
-    // bounce
     const dot = o.vx * nx + o.vy * ny;
-    o.vx -= 1.4 * dot * nx;
-    o.vy -= 1.4 * dot * ny;
-    o.vx *= 0.78;
-    o.vy *= 0.78;
+    o.vx -= 1.35 * dot * nx;
+    o.vy -= 1.35 * dot * ny;
+    o.vx *= 0.80;
+    o.vy *= 0.80;
 
     return true;
   }
 
+  // =========================
+  // Update / Draw
+  // =========================
   function update(dt) {
     const R = room();
 
-    // Jesper movement
-    const speed = state.sitting ? 0 : 165;
-    const ax = (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0);
-    const ay = (state.keys.down ? 1 : 0) - (state.keys.up ? 1 : 0);
+    // movement input (buttons + joystick)
+    let ax = (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0);
+    let ay = (state.keys.down  ? 1 : 0) - (state.keys.up   ? 1 : 0);
+
+    if (state.joy.active) {
+      const jx = state.joy.dx / 44;
+      const jy = state.joy.dy / 44;
+      if (Math.abs(jx) > 0.12) ax = jx;
+      if (Math.abs(jy) > 0.12) ay = jy;
+    }
+
+    // normalize for diagonals
+    const mag = Math.hypot(ax, ay);
+    if (mag > 1) { ax /= mag; ay /= mag; }
+
+    const speed = state.sitting ? 0 : 210;
 
     jesper.vx = ax * speed;
     jesper.vy = ay * speed;
@@ -519,454 +535,446 @@
 
     resolveWallCircle(R, jesper);
 
-    // Ornaments physics
-    const friction = Math.pow(0.2, dt); // exponential-ish
-    const bounceGruntThreshold = 5.2;
+    // ornaments physics (clear + snappy)
+    const friction = Math.pow(0.10, dt); // strong damping, feels "room-y"
 
-    const blocks = [
-      props.table,
-      props.chair,
-      props.tree
-    ];
+    const blocks = [ props.table, props.chair, props.tree ];
 
     ornaments.forEach(o => {
-      o.x += o.vx * 60 * dt;
-      o.y += o.vy * 60 * dt;
+      if (dragging === o) return;
+
+      o.x += o.vx * dt;
+      o.y += o.vy * dt;
 
       o.vx *= friction;
       o.vy *= friction;
 
+      // stop tiny drift
+      if (Math.abs(o.vx) < 2) o.vx = 0;
+      if (Math.abs(o.vy) < 2) o.vy = 0;
+
       resolveWallCircle(R, o);
 
-      // collide with furniture
-      let hit = false;
-      blocks.forEach(b => {
-        if (resolveRectBlock(o, b)) hit = true;
-      });
+      blocks.forEach(b => resolveRectBlockCircle(o, b));
 
-      // collide with Jesper (makes them roll away)
-      const d = dist(o.x,o.y, jesper.x, jesper.y);
+      // collide with Jesper
+      const d = dist(o.x, o.y, jesper.x, jesper.y);
       const minD = o.r + jesper.r;
       if (d < minD) {
         const nx = (o.x - jesper.x) / Math.max(d, 1);
         const ny = (o.y - jesper.y) / Math.max(d, 1);
-        const push = (minD - d) * 0.8;
+        const push = (minD - d) * 1.05;
         o.x += nx * push;
         o.y += ny * push;
-        o.vx += nx * 2.2;
-        o.vy += ny * 2.2;
-        hit = true;
-      }
-
-      // occasional grunt on “hard” hits
-      if (audioEnabled && hit && (Math.abs(o.vx) + Math.abs(o.vy)) > bounceGruntThreshold && Math.random() < 0.25) {
-        playGrunt(0.8);
+        o.vx += nx * 120;
+        o.vy += ny * 120;
       }
     });
   }
 
-  // ====== Rendering (tacky room) ======
-  function draw() {
-    const rect = canvas.getBoundingClientRect();
+  function draw(tMs) {
+    const rect = getRect();
     const W = rect.width;
     const H = rect.height;
 
-    // background base
-    ctx.fillStyle = "#08001d";
-    ctx.fillRect(0,0,W,H);
-
-    // wallpaper stripes (tacky)
-    for (let i=0;i<14;i++){
-      ctx.fillStyle = i%2 ? "rgba(255,79,216,0.06)" : "rgba(69,255,241,0.05)";
-      ctx.fillRect(i*(W/14), 0, W/14, H);
-    }
+    // clean bright background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
 
     const R = room();
 
-    // room floor
-    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    // room fill
+    ctx.fillStyle = "#f3f4f6";
     ctx.fillRect(R.x, R.y, R.w, R.h);
 
-    // room border
-    ctx.strokeStyle = "rgba(255,235,107,0.75)";
-    ctx.lineWidth = 3;
-    ctx.setLineDash([8,6]);
+    // border
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
     ctx.strokeRect(R.x, R.y, R.w, R.h);
-    ctx.setLineDash([]);
 
-    // ugly “Christmas lights” along top wall
-    const bulbs = 12;
-    for (let i=0;i<bulbs;i++){
-      const x = R.x + 18 + i * ((R.w-36)/(bulbs-1));
-      const y = R.y + 8;
-      const pulse = 0.4 + 0.6*Math.sin(performance.now()/240 + i);
-      ctx.beginPath();
-      ctx.fillStyle = i%3===0 ? `rgba(255,79,216,${0.35+pulse*0.35})`
-                    : i%3===1 ? `rgba(69,255,241,${0.35+pulse*0.35})`
-                    : `rgba(255,235,107,${0.35+pulse*0.35})`;
-      ctx.arc(x, y, 5, 0, Math.PI*2);
-      ctx.fill();
-    }
-
-    // furniture
-    drawTable(props.table);
-    drawChair(props.chair);
-    drawTree(props.tree);
-
-    // ornaments
-    ornaments.forEach(drawOrnament);
-
-    // Jesper (tiny tacky character)
-    drawJesper(performance.now());
-
-    // silly “floor label”
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    // floor label
+    ctx.fillStyle = "rgba(17,24,39,0.25)";
     ctx.font = "900 12px ui-monospace, monospace";
     ctx.fillText("RUM 01 – EXISTENS / JUL / KAFFE", R.x + 12, R.y + R.h - 12);
+
+    // draw furniture (clear silhouettes)
+    drawTable(props.table);
+    drawChair(props.chair);
+    drawTree(props.tree, tMs);
+
+    // draw ornaments (big, readable)
+    ornaments.forEach(drawOrnament);
+
+    // draw Jesper (clear)
+    drawJesper(tMs);
+
+    // joystick visual (if active)
+    if (state.joy.active && !dragging) {
+      drawJoystick();
+    }
   }
 
   function drawTable(t){
     ctx.save();
-    ctx.fillStyle = "rgba(255,235,107,0.12)";
-    ctx.strokeStyle = "rgba(255,235,107,0.35)";
-    roundRect(t.x, t.y, t.w, t.h, 10, true, true);
+    // top
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRect(t.x, t.y, t.w, t.h, 14, true, true);
+
     // legs
-    ctx.fillStyle = "rgba(255,235,107,0.16)";
-    ctx.fillRect(t.x+10, t.y+t.h, 10, 28);
-    ctx.fillRect(t.x+t.w-20, t.y+t.h, 10, 28);
-    // mug
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    ctx.fillRect(t.x + t.w*0.58, t.y + 12, 10, 12);
-    ctx.strokeStyle = "rgba(255,79,216,0.6)";
-    ctx.strokeRect(t.x + t.w*0.58, t.y + 12, 10, 12);
+    ctx.fillStyle = "#e5e7eb";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 3;
+    roundRect(t.x + 16, t.y + t.h - 2, 14, 38, 8, true, true);
+    roundRect(t.x + t.w - 30, t.y + t.h - 2, 14, 38, 8, true, true);
+
+    // mug (tacky coffee)
+    ctx.fillStyle = "#dbeafe";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 3;
+    roundRect(t.x + t.w - 42, t.y + 12, 18, 16, 6, true, true);
+    ctx.beginPath();
+    ctx.arc(t.x + t.w - 20, t.y + 20, 6, -0.5, 0.5);
+    ctx.stroke();
+
     ctx.restore();
   }
 
   function drawChair(c){
     ctx.save();
-    ctx.fillStyle = "rgba(69,255,241,0.10)";
-    ctx.strokeStyle = "rgba(69,255,241,0.35)";
-    roundRect(c.x, c.y, c.w, c.h, 10, true, true);
-    // backrest line
-    ctx.strokeStyle = "rgba(69,255,241,0.55)";
-    ctx.beginPath();
-    ctx.moveTo(c.x+10, c.y+12);
-    ctx.lineTo(c.x+c.w-10, c.y+12);
-    ctx.stroke();
+
+    // seat
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRect(c.x, c.y + 28, c.w, c.h - 28, 14, true, true);
+
+    // backrest (very clear)
+    ctx.fillStyle = "#ffffff";
+    roundRect(c.x + 10, c.y, c.w - 20, 34, 14, true, true);
+
+    // “chair” label (tacky)
+    ctx.fillStyle = "rgba(17,24,39,0.35)";
+    ctx.font = "900 11px ui-monospace, monospace";
+    ctx.fillText("STOL", c.x + 18, c.y + 22);
+
     ctx.restore();
   }
 
-  function drawTree(tr){
+  function drawTree(tr, tMs){
     ctx.save();
+
     // trunk
-    ctx.fillStyle = "rgba(255,235,107,0.12)";
-    ctx.fillRect(tr.x + tr.w*0.42, tr.y + tr.h*0.72, tr.w*0.16, tr.h*0.22);
+    ctx.fillStyle = "#d1d5db";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 3;
+    roundRect(tr.x + tr.w*0.42, tr.y + tr.h*0.78, tr.w*0.16, tr.h*0.20, 8, true, true);
 
     // triangles
-    ctx.fillStyle = "rgba(124,255,107,0.12)";
-    triangle(tr.x + tr.w/2, tr.y + 4, tr.x + 4, tr.y + tr.h*0.55, tr.x + tr.w - 4, tr.y + tr.h*0.55);
+    ctx.fillStyle = "#dcfce7";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 3;
 
-    ctx.fillStyle = "rgba(255,79,216,0.10)";
-    triangle(tr.x + tr.w/2, tr.y + tr.h*0.18, tr.x + 6, tr.y + tr.h*0.78, tr.x + tr.w - 6, tr.y + tr.h*0.78);
+    triangle(tr.x + tr.w/2, tr.y + 6, tr.x + 10, tr.y + tr.h*0.52, tr.x + tr.w - 10, tr.y + tr.h*0.52);
+    triangle(tr.x + tr.w/2, tr.y + tr.h*0.20, tr.x + 8, tr.y + tr.h*0.74, tr.x + tr.w - 8, tr.y + tr.h*0.74);
 
-    // star topper
-    ctx.font = "22px var(--font)";
-    ctx.fillStyle = "rgba(255,235,107,0.85)";
-    ctx.fillText("⭐", tr.x + tr.w/2 - 10, tr.y + 18);
+    // star topper pulse
+    const pulse = 0.7 + 0.3 * Math.sin(tMs / 240);
+    ctx.font = "22px " + getComputedStyle(document.body).fontFamily;
+    ctx.globalAlpha = 1;
+    ctx.fillText("⭐", tr.x + tr.w/2 - 10, tr.y + 20);
 
-    // tiny ornaments on tree
-    ctx.font = "16px var(--font)";
-    ctx.fillText("🔴", tr.x + 10, tr.y + 52);
-    ctx.fillText("🔴", tr.x + tr.w - 26, tr.y + 66);
-    ctx.fillText("🔴", tr.x + tr.w/2 - 8, tr.y + 82);
+    // simple baubles
+    ctx.globalAlpha = 0.9;
+    ctx.font = "18px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillText("🔴", tr.x + 12, tr.y + 56);
+    ctx.fillText("🔴", tr.x + tr.w - 28, tr.y + 68);
+    ctx.fillText("🔴", tr.x + tr.w/2 - 8, tr.y + 92);
+
+    // glow ring (subtle, clear)
+    ctx.globalAlpha = 0.18 * pulse;
+    ctx.fillStyle = "#60a5fa";
+    ctx.beginPath();
+    ctx.ellipse(tr.x + tr.w/2, tr.y + tr.h*0.48, 48, 60, 0, 0, Math.PI*2);
+    ctx.fill();
 
     ctx.restore();
   }
 
   function drawOrnament(o){
     ctx.save();
-    ctx.font = "22px var(--font)";
+
+    // base circle behind emoji (clarity)
+    ctx.beginPath();
+    ctx.fillStyle = o.base;
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    ctx.arc(o.x, o.y, o.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    // emoji
+    ctx.font = "24px " + getComputedStyle(document.body).fontFamily;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(o.label, o.x, o.y);
+    ctx.fillStyle = "#111827";
+    ctx.fillText(o.label, o.x, o.y + 1);
 
-    // glow ring
-    ctx.beginPath();
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.arc(o.x, o.y, o.r + 6, 0, Math.PI*2);
-    ctx.stroke();
     ctx.restore();
   }
 
-function drawJesper(tMs){
-  ctx.save();
+  // Jesper: curly brunrött hair, tortoiseshell glasses, black hoodie, gray pants, brown shoes
+  function drawJesper(tMs){
+    ctx.save();
 
-  const moving = Math.abs(jesper.vx) + Math.abs(jesper.vy) > 1;
-  const walk = moving ? Math.sin(tMs / 95) : 0;
-  const idle = moving ? 0 : Math.sin(tMs / 420) * 0.8;
+    const moving = Math.abs(jesper.vx) + Math.abs(jesper.vy) > 1;
+    const walk = moving ? Math.sin(tMs / 95) : 0;
+    const idle = moving ? 0 : Math.sin(tMs / 420);
 
-  const ax = (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0);
-  const face = ax !== 0 ? ax : 1;
+    // facing based on movement/keys
+    const ax = (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0);
+    const face = ax !== 0 ? ax : (jesper.vx !== 0 ? Math.sign(jesper.vx) : 1);
 
-  const sit = state.sitting ? 1 : 0;
-  const bob = (sit ? 0.2 : 1) * (moving ? walk * 1.2 : idle);
+    const sit = state.sitting ? 1 : 0;
+    const bob = (sit ? 0.2 : 1) * (moving ? walk * 2.4 : idle * 1.1);
 
-  const x = jesper.x;
-  const y = jesper.y + bob;
+    const x = jesper.x;
+    const y = jesper.y + bob;
 
-  // --- palette (your outfit) ---
-  const skin = "rgba(255,235,190,0.85)";
-  const hair = "rgba(148,72,34,0.92)";              // brunrött
-  const hairHi = "rgba(198,108,58,0.70)";
+    // palette
+    const skin = "rgba(255,235,190,1.0)";
+    const hair = "rgba(148,72,34,0.95)";
+    const hairHi = "rgba(198,108,58,0.75)";
+    const hoodie = "rgba(17,24,39,1.0)";           // black-ish
+    const pants = "rgba(156,163,175,1.0)";         // gray
+    const shoe = "rgba(120,74,36,1.0)";            // brown
 
-  const hoodie = "rgba(8,8,12,0.92)";               // svart hoodie
-  const hoodieHi = "rgba(255,255,255,0.08)";
+    ctx.translate(x, y);
+    ctx.scale(face, 1);
 
-  const pants = "rgba(160,165,175,0.70)";           // grå byxor
-  const pantsEdge = "rgba(255,255,255,0.12)";
-
-  const shoe = "rgba(120,74,36,0.90)";              // bruna skor
-  const shoeEdge = "rgba(255,255,255,0.12)";
-
-  // transform for facing
-  ctx.translate(x, y);
-  ctx.scale(face, 1);
-
-  // shadow blob
-  ctx.beginPath();
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
-  ctx.ellipse(0, 22, 18, 6, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // --- legs / shoes (walk cycle) ---
-  const legSwing = sit ? 0.0 : walk * 6;
-  const kneeBend = sit ? 6 : 0;
-
-  drawLegAndShoe(-8, 16, -6 + legSwing, 28 - kneeBend);
-  drawLegAndShoe( 8, 16,  6 - legSwing, 28 - kneeBend);
-
-  // --- hoodie body ---
-  ctx.lineWidth = 3;
-  ctx.fillStyle = hoodie;
-  ctx.strokeStyle = "rgba(255,255,255,0.14)";
-  roundRectLocal(-16, -4, 32, 32, 10, true, true);
-
-  // hoodie pocket (tacky)
-  ctx.fillStyle = "rgba(255,255,255,0.05)";
-  roundRectLocal(-12, 12, 24, 12, 6, true, false);
-
-  // zipper-ish line
-  ctx.beginPath();
-  ctx.strokeStyle = "rgba(255,255,255,0.10)";
-  ctx.lineWidth = 2;
-  ctx.moveTo(0, 0);
-  ctx.lineTo(0, 26);
-  ctx.stroke();
-
-  // hood behind head
-  ctx.beginPath();
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.strokeStyle = "rgba(255,255,255,0.10)";
-  ctx.lineWidth = 2;
-  ctx.arc(0, -26, 18, Math.PI * 0.05, Math.PI * 0.95);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // hoodie highlight (cheap “shine”)
-  ctx.beginPath();
-  ctx.strokeStyle = hoodieHi;
-  ctx.lineWidth = 3;
-  ctx.moveTo(-10, 2);
-  ctx.quadraticCurveTo(-6, 10, -8, 22);
-  ctx.stroke();
-
-  // --- arms (sleeves) ---
-  const armSwing = sit ? 0 : walk * 4;
-  drawSleeve(-18, 6, -28, 10 - armSwing);
-  drawSleeve( 18, 6,  28, 10 + armSwing);
-
-  // --- pants (simple belt line) ---
-  ctx.beginPath();
-  ctx.strokeStyle = pantsEdge;
-  ctx.lineWidth = 2;
-  ctx.moveTo(-14, 14);
-  ctx.lineTo(14, 14);
-  ctx.stroke();
-
-  // --- head ---
-  ctx.beginPath();
-  ctx.fillStyle = skin;
-  ctx.strokeStyle = "rgba(255,255,255,0.18)";
-  ctx.lineWidth = 3;
-  ctx.arc(0, -26, 14, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // --- curly brunrött hair (tacky curls) ---
-  drawCurlyHair();
-
-  // --- glasses (round tortoiseshell) ---
-  drawTortoiseGlasses();
-
-  // eyes
-  ctx.beginPath();
-  ctx.fillStyle = "rgba(0,0,0,0.65)";
-  ctx.arc(-5, -28, 2, 0, Math.PI * 2);
-  ctx.arc( 5, -28, 2, 0, Math.PI * 2);
-  ctx.fill();
-
-  // mouth
-  ctx.beginPath();
-  ctx.strokeStyle = sit ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.55)";
-  ctx.lineWidth = 2;
-  if (sit) {
-    ctx.moveTo(-4, -20);
-    ctx.lineTo(4, -20);
-  } else {
-    ctx.arc(0, -20, 4, 0.1 * Math.PI, 0.9 * Math.PI);
-  }
-  ctx.stroke();
-
-  // tiny snow puff when moving
-  if (moving && Math.random() < 0.20) {
+    // shadow
     ctx.beginPath();
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 1;
-    ctx.moveTo(-18, -34);
-    ctx.lineTo(-26, -38);
-    ctx.moveTo(-16, -30);
-    ctx.lineTo(-26, -30);
-    ctx.stroke();
-  }
-
-  // name tag (tacky)
-  ctx.font = "900 12px " + getComputedStyle(document.body).fontFamily;
-  ctx.fillStyle = "rgba(255,235,107,0.9)";
-  ctx.textAlign = "center";
-  ctx.fillText("JESPER", 0, -54);
-
-  ctx.restore();
-
-  // ===== helpers =====
-  function drawLegAndShoe(hipX, hipY, footX, footY){
-    // pants leg
-    ctx.beginPath();
-    ctx.strokeStyle = pants;
-    ctx.lineWidth = 7;
-    ctx.lineCap = "round";
-    ctx.moveTo(hipX, hipY);
-    ctx.lineTo(footX, footY);
-    ctx.stroke();
-
-    // shoe
-    ctx.beginPath();
-    ctx.fillStyle = shoe;
-    ctx.strokeStyle = shoeEdge;
-    ctx.lineWidth = 2;
-    roundRectLocal(footX - 11, footY - 6, 22, 12, 6, true, true);
-
-    // sole line (extra tacky)
-    ctx.beginPath();
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
-    ctx.lineWidth = 2;
-    ctx.moveTo(footX - 9, footY + 3);
-    ctx.lineTo(footX + 9, footY + 3);
-    ctx.stroke();
-  }
-
-  function drawSleeve(x1, y1, x2, y2){
-    ctx.beginPath();
-    ctx.strokeStyle = "rgba(0,0,0,0.65)";
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round";
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-
-    // hand (tiny)
-    ctx.beginPath();
-    ctx.fillStyle = "rgba(255,235,190,0.35)";
-    ctx.arc(x2, y2, 4, 0, Math.PI*2);
+    ctx.fillStyle = "rgba(17,24,39,0.18)";
+    ctx.ellipse(0, 30, 22, 7, 0, 0, Math.PI*2);
     ctx.fill();
-  }
 
-  function drawCurlyHair(){
-    // main cap
+    // legs
+    const legSwing = sit ? 0 : walk * 8;
+    const knee = sit ? 8 : 0;
+    drawLeg(-8, 18, -10 + legSwing, 34 - knee);
+    drawLeg( 8, 18,  10 - legSwing, 34 - knee);
+
+    // body hoodie
+    ctx.fillStyle = hoodie;
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRect(-18, -6, 36, 34, 12, true, true);
+
+    // hoodie pocket
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    roundRect(-13, 12, 26, 12, 8, true, false);
+
+    // hood behind head
+    ctx.fillStyle = "rgba(17,24,39,1.0)";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.fillStyle = hair;
-    ctx.arc(0, -33, 15, Math.PI, 0);
+    ctx.arc(0, -24, 20, Math.PI*0.05, Math.PI*0.95);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
 
-    // curls (small loops)
-    ctx.strokeStyle = hairHi;
+    // arms
+    const armSwing = sit ? 0 : walk * 6;
+    drawArm(-18, 6, -30, 14 - armSwing);
+    drawArm( 18, 6,  30, 14 + armSwing);
+
+    // head
+    ctx.beginPath();
+    ctx.fillStyle = skin;
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    ctx.arc(0, -26, 15, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    // curly hair
+    drawCurlyHair();
+
+    // glasses (tortoiseshell)
+    drawTortoiseGlasses();
+
+    // eyes
+    ctx.beginPath();
+    ctx.fillStyle = "#111827";
+    ctx.arc(-5, -28, 2.2, 0, Math.PI*2);
+    ctx.arc( 5, -28, 2.2, 0, Math.PI*2);
+    ctx.fill();
+
+    // mouth
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(17,24,39,0.8)";
+    ctx.lineWidth = 2.6;
+    if (sit) {
+      ctx.moveTo(-4, -19);
+      ctx.lineTo(4, -19);
+    } else {
+      ctx.arc(0, -19, 4, 0.1*Math.PI, 0.9*Math.PI);
+    }
+    ctx.stroke();
+
+    // pants belt line hint
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
     ctx.lineWidth = 2;
-    for (let i = -10; i <= 10; i += 5) {
+    ctx.moveTo(-14, 10);
+    ctx.lineTo(14, 10);
+    ctx.stroke();
+
+    // name tag (very clear)
+    ctx.font = "900 12px ui-monospace, monospace";
+    ctx.fillStyle = "rgba(17,24,39,0.55)";
+    ctx.textAlign = "center";
+    ctx.fillText("JESPER", 0, -52);
+
+    ctx.restore();
+
+    function drawLeg(hipX, hipY, footX, footY){
+      // pants leg
       ctx.beginPath();
-      ctx.arc(i, -38, 3.2, 0, Math.PI * 2);
+      ctx.strokeStyle = pants;
+      ctx.lineWidth = 9;
+      ctx.lineCap = "round";
+      ctx.moveTo(hipX, hipY);
+      ctx.lineTo(footX, footY);
+      ctx.stroke();
+
+      // shoe
+      ctx.fillStyle = shoe;
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 3;
+      roundRect(footX - 12, footY - 7, 24, 14, 7, true, true);
+
+      // sole
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(0,0,0,0.28)";
+      ctx.lineWidth = 2;
+      ctx.moveTo(footX - 10, footY + 4);
+      ctx.lineTo(footX + 10, footY + 4);
       ctx.stroke();
     }
 
-    // side curl
+    function drawArm(x1, y1, x2, y2){
+      ctx.beginPath();
+      ctx.strokeStyle = hoodie;
+      ctx.lineWidth = 10;
+      ctx.lineCap = "round";
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      // hand
+      ctx.beginPath();
+      ctx.fillStyle = "rgba(255,235,190,0.75)";
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 2;
+      ctx.arc(x2, y2, 4.5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function drawCurlyHair(){
+      // top cap
+      ctx.beginPath();
+      ctx.fillStyle = hair;
+      ctx.arc(0, -34, 16, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      // curls (clear little loops)
+      ctx.strokeStyle = hairHi;
+      ctx.lineWidth = 2.2;
+      for (let i = -12; i <= 12; i += 6) {
+        ctx.beginPath();
+        ctx.arc(i, -40, 3.4, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      // side curl
+      ctx.beginPath();
+      ctx.strokeStyle = hair;
+      ctx.lineWidth = 3.2;
+      ctx.arc(-13, -29, 4.2, Math.PI*0.2, Math.PI*1.5);
+      ctx.stroke();
+    }
+
+    function drawTortoiseGlasses(){
+      const g = ctx.createLinearGradient(-16, -34, 16, -18);
+      g.addColorStop(0.00, "rgba(20,20,20,0.95)");
+      g.addColorStop(0.35, "rgba(120,74,36,0.95)");
+      g.addColorStop(0.70, "rgba(210,190,150,0.95)");
+      g.addColorStop(1.00, "rgba(20,20,20,0.95)");
+
+      ctx.lineWidth = 3.6;
+      ctx.strokeStyle = g;
+
+      // left lens
+      ctx.beginPath();
+      ctx.arc(-7, -28, 6.6, 0, Math.PI*2);
+      ctx.stroke();
+
+      // right lens
+      ctx.beginPath();
+      ctx.arc(7, -28, 6.6, 0, Math.PI*2);
+      ctx.stroke();
+
+      // bridge
+      ctx.beginPath();
+      ctx.lineWidth = 3.0;
+      ctx.moveTo(-1.6, -28);
+      ctx.lineTo(1.6, -28);
+      ctx.stroke();
+
+      // small shine
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255,255,255,0.25)";
+      ctx.lineWidth = 1.2;
+      ctx.arc(-7, -30, 3.4, Math.PI*1.1, Math.PI*1.7);
+      ctx.arc(7, -30, 3.4, Math.PI*1.1, Math.PI*1.7);
+      ctx.stroke();
+    }
+  }
+
+  function drawJoystick(){
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+
+    const baseX = state.joy.startX;
+    const baseY = state.joy.startY;
+    const knobX = baseX + state.joy.dx;
+    const knobY = baseY + state.joy.dy;
+
+    // base
     ctx.beginPath();
-    ctx.strokeStyle = hair;
+    ctx.fillStyle = "rgba(17,24,39,0.08)";
+    ctx.strokeStyle = "rgba(17,24,39,0.35)";
     ctx.lineWidth = 3;
-    ctx.arc(-12, -29, 4, Math.PI * 0.2, Math.PI * 1.5);
+    ctx.arc(baseX, baseY, 26, 0, Math.PI*2);
+    ctx.fill();
     ctx.stroke();
+
+    // knob
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(37,99,235,0.18)";
+    ctx.strokeStyle = "rgba(17,24,39,0.55)";
+    ctx.lineWidth = 3;
+    ctx.arc(knobX, knobY, 18, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
   }
 
-  function drawTortoiseGlasses(){
-    // tortoiseshell gradient
-    const g = ctx.createLinearGradient(-14, -34, 14, -18);
-    g.addColorStop(0.00, "rgba(40,25,12,0.95)");   // mörkbrun/svart
-    g.addColorStop(0.35, "rgba(120,74,36,0.95)");  // brun
-    g.addColorStop(0.70, "rgba(210,190,150,0.95)");// beige
-    g.addColorStop(1.00, "rgba(20,20,20,0.95)");   // svart
-
-    ctx.lineWidth = 3.2;
-    ctx.strokeStyle = g;
-
-    // left lens
-    ctx.beginPath();
-    ctx.arc(-7, -28, 6, 0, Math.PI*2);
-    ctx.stroke();
-
-    // right lens
-    ctx.beginPath();
-    ctx.arc(7, -28, 6, 0, Math.PI*2);
-    ctx.stroke();
-
-    // bridge
-    ctx.beginPath();
-    ctx.lineWidth = 2.6;
-    ctx.moveTo(-1.5, -28);
-    ctx.lineTo(1.5, -28);
-    ctx.stroke();
-
-    // tiny shine
-    ctx.beginPath();
-    ctx.strokeStyle = "rgba(255,255,255,0.22)";
-    ctx.lineWidth = 1.2;
-    ctx.arc(-7, -30, 3, Math.PI * 1.1, Math.PI * 1.7);
-    ctx.arc(7, -30, 3, Math.PI * 1.1, Math.PI * 1.7);
-    ctx.stroke();
-  }
-
-  function roundRectLocal(x, y, w, h, r, fill, stroke){
-    const rr = Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+rr, y);
-    ctx.arcTo(x+w, y, x+w, y+h, rr);
-    ctx.arcTo(x+w, y+h, x, y+h, rr);
-    ctx.arcTo(x, y+h, x, y, rr);
-    ctx.arcTo(x, y, x+w, y, rr);
-    ctx.closePath();
-    if (fill) ctx.fill();
-    if (stroke) ctx.stroke();
-  }
-}
- 
   function roundRect(x, y, w, h, r, fill, stroke){
     const rr = Math.min(r, w/2, h/2);
     ctx.beginPath();
@@ -987,26 +995,29 @@ function drawJesper(tMs){
     ctx.lineTo(cx, cy);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
   }
 
-  // ====== Game loop ======
+  // =========================
+  // Loop
+  // =========================
   let last = performance.now();
   function loop(t){
     const dt = Math.min(0.033, (t - last) / 1000);
     last = t;
-    if (!wonder.classList.contains("hidden")) {
-      requestAnimationFrame(loop);
-      return; // pause room updates while wonder shown
+
+    if (wonder.classList.contains("hidden")) {
+      update(dt);
+      draw(t);
     }
-    update(dt);
-    draw();
+
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
 
-  // First-time hint
+  // First hint (inte för mycket)
   setTimeout(() => {
-    toast("Pro tip: sparka ⏰ → 🍬 → ⭐ och SITT på 🪑 (om du vågar).");
+    toast("Tips: SPARKA ⏰ → 🍬 → ⭐ och SITT på stolen.");
   }, 900);
 
 })();
