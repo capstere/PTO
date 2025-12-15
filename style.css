@@ -1,3 +1,4 @@
+/* Jesper i rummet — Dunderversion (mobil-first) */
 :root{
   --bg: #f4f6ff;
   --panel: #ffffff;
@@ -6,14 +7,14 @@
   --line: #111827;
 
   --accent: #2563eb;
-  --accent2:#16a34a;
 
   --btn: #111827;
   --btnText: #ffffff;
 
-  /* iOS Safari toolbar “reserv” (justera vid behov) */
-  --ios-toolbar: 64px;
   --topbar-h: 74px;
+
+  --r: 16px;
+  --stroke: 3px;
 
   --font: ui-rounded, system-ui, -apple-system, "Trebuchet MS", sans-serif;
 }
@@ -24,33 +25,29 @@ body{
   font-family: var(--font);
   background: var(--bg);
   color: var(--ink);
-  overflow:hidden;
+  overflow: hidden;
 }
 
-/* TOP BAR */
+/* Top bar */
 .topbar{
   position: fixed;
-  top:0; left:0; right:0;
+  top: 0; left: 0; right: 0;
   height: var(--topbar-h);
   z-index: 10;
-
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:10px;
-
+  gap: 10px;
   padding: 10px 12px;
   background: var(--panel);
-  border-bottom: 3px solid var(--line);
+  border-bottom: var(--stroke) solid var(--line);
 }
-
 .brand{
-  font-weight: 900;
-  letter-spacing: 0.12em;
+  font-weight: 1000;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 0.85rem;
 }
-
 .countdown{
   margin-top: 4px;
   font-size: 0.85rem;
@@ -58,33 +55,33 @@ body{
 }
 .countdown__value{
   font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
-  font-weight: 900;
+  font-weight: 1000;
   color: var(--ink);
 }
-
 .topbar__left{ display:flex; flex-direction:column; gap:2px; }
 .topbar__right{ display:flex; gap:8px; }
 
 .btn{
-  border: 3px solid var(--line);
+  border: var(--stroke) solid var(--line);
   background: var(--btn);
   color: var(--btnText);
   border-radius: 14px;
   padding: 10px 12px;
-  font-weight: 900;
+  font-weight: 1000;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   touch-action: manipulation;
 }
-.btn--tiny{ padding: 8px 10px; font-size: 0.75rem; }
-.btn--big{ padding: 14px 12px; font-size: 0.95rem; width: 100%; }
-
 .btn--alt{
   background: var(--panel);
   color: var(--ink);
 }
+.btn--big{
+  padding: 14px 12px;
+  font-size: 1.05rem;
+  width: 100%;
+}
 
-/* MAIN LAYOUT */
 .app{
   position: fixed;
   top: var(--topbar-h);
@@ -94,108 +91,72 @@ body{
   flex-direction:column;
   gap: 10px;
 
-  padding: 10px 10px calc(10px + env(safe-area-inset-bottom) + var(--ios-toolbar));
+  padding: 10px 10px calc(12px + env(safe-area-inset-bottom));
 }
 
-/* GAME SCREEN */
 .screen{
   position: relative;
   flex: 1;
-  border-radius: 16px;
   background: var(--panel);
-  border: 3px solid var(--line);
+  border: var(--stroke) solid var(--line);
+  border-radius: var(--r);
   overflow:hidden;
 }
-
 canvas#game{
-  width:100%;
-  height:100%;
+  width: 100%;
+  height: 100%;
   display:block;
-  touch-action: none; /* superviktigt för iOS */
+  touch-action: none; /* iOS: allow custom joystick/drag */
+}
+
+.microhint{
+  position:absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  font-size: 0.76rem;
+  color: rgba(17,24,39,0.55);
+  font-weight: 800;
+  text-align: center;
+  pointer-events: none;
 }
 
 .bubble{
   position:absolute;
   left: 10px;
-  bottom: 10px;
+  bottom: 34px;
   max-width: 92%;
   padding: 10px 12px;
   border-radius: 14px;
   background: #fff;
   color: var(--ink);
-  border: 3px solid var(--line);
-  font-weight: 900;
+  border: var(--stroke) solid var(--line);
+  font-weight: 1000;
 }
-
 .toast{
   position:absolute;
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
   background: #fff;
-  border: 3px solid var(--line);
+  border: var(--stroke) solid var(--line);
   color: var(--ink);
   padding: 8px 10px;
   border-radius: 12px;
-  font-weight: 900;
+  font-weight: 1000;
   font-size: 0.85rem;
   text-align:center;
   max-width: 95%;
 }
-
 .hidden{ display:none !important; }
 
-/* CONTROLS */
 .controls{
   display:flex;
-  gap:10px;
-  align-items:stretch;
+  gap: 10px;
 }
 
-.dpad{
-  width: 42%;
-  min-width: 150px;
-  background: var(--panel);
-  border: 3px solid var(--line);
-  border-radius: 16px;
-  padding: 10px;
-}
-
-.dpadGrid{
-  display:grid;
-  grid-template-columns: 56px 56px 56px;
-  grid-template-rows: 52px 52px 52px;
-  gap: 8px;
-  place-content:center;
-}
-
-.pad{
-  width:56px;
-  height:52px;
-  border-radius: 14px;
-  border: 3px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-  font-size: 1.05rem;
-  font-weight: 900;
-  touch-action: manipulation;
-}
-
-.pad--center{
-  background: #eaf2ff;
-  border-color: var(--accent);
-}
-
-.actions{
-  width: 58%;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-
-/* MODAL + WONDER behålls (du kan ha kvar din gamla CSS här om du vill),
-   men vi gör det enkelt: */
-.modal, .wonder{
+/* Modal */
+.modal{
   position:fixed; inset:0;
   z-index: 50;
   background: rgba(0,0,0,0.65);
@@ -207,54 +168,52 @@ canvas#game{
 .modal__card{
   width: min(560px, 100%);
   background:#fff;
-  border: 3px solid var(--line);
-  border-radius: 16px;
+  border: var(--stroke) solid var(--line);
+  border-radius: var(--r);
   padding: 14px;
   color: var(--ink);
 }
 .modal__title{ font-weight: 1000; margin-bottom: 8px; }
-.modal__body{ color: var(--muted); font-weight: 600; }
+.modal__body{ color: var(--muted); font-weight: 700; }
 .modal__body b{ color: var(--ink); }
 
+/* Wonder overlay */
 .wonder{
-  background: linear-gradient(180deg, #0ea5e9, #1d4ed8);
-  flex-direction:column;
-  justify-content:flex-end;
+  position:fixed; inset:0;
+  z-index: 60;
+  background: #000;
 }
-.wonder__scene{
+#wonderCanvas{
   position:absolute; inset:0;
-  overflow:hidden;
+  width: 100%;
+  height: 100%;
+  display:block;
+}
+.wonder__copy{
+  position:absolute;
+  left: 0; right:0;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  padding: 14px 12px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap: 8px;
+  pointer-events: none;
 }
 .wonder__title{
-  position:absolute;
-  top: 18%;
-  left:50%;
-  transform: translateX(-50%);
-  width: 92%;
-  text-align:center;
-  font-weight: 1000;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
   color:#fff;
-  text-shadow: 0 4px 0 rgba(0,0,0,0.25);
+  font-weight: 1000;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-shadow: 0 6px 0 rgba(0,0,0,0.35);
 }
 .wonder__subtitle{
-  position:absolute;
-  top: 26%;
-  left:50%;
-  transform: translateX(-50%);
-  width: 92%;
-  text-align:center;
   color: rgba(255,255,255,0.92);
-  font-weight: 800;
+  font-weight: 900;
+  text-align:center;
+  text-shadow: 0 4px 0 rgba(0,0,0,0.25);
 }
 .wonder__close{
-  width: min(460px, 100%);
-  margin-bottom: 12px;
-}
-
-/* små justeringar på väldigt små skärmar */
-@media (max-width: 380px){
-  .pad{ width:52px; height:48px; }
-  .dpadGrid{ grid-template-columns: 52px 52px 52px; grid-template-rows: 48px 48px 48px; }
+  pointer-events: auto;
+  width: min(520px, 92%);
 }
