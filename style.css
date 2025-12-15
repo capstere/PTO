@@ -216,4 +216,4 @@ canvas#game{
 .wonder__close{
   pointer-events: auto;
   width: min(520px, 92%);
-}
+
