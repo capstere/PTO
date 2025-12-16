@@ -1,22 +1,21 @@
 (() => {
-  'use strict';
+  "use strict";
 
-  // =========================================================
-  // Jesper i rummet — Dunderversion v2 (NO D-PAD)
-  // - Mobile first, joystick drag on canvas
-  // - SPARKA / SITT buttons
-  // - 3 props, 3 ornaments, secret combo, wonder overlay
-  // =========================================================
+  // ---------- Safe helpers ----------
+  const $ = (id) => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
 
-  // ===== Countdown (7 Jan 2026 06:00 CET = 05:00 UTC) =====
-  const countdownEl = document.getElementById('countdownValue');
+  function nowMs(){ return performance.now ? performance.now() : Date.now(); }
+
+  // ---------- Countdown (7 Jan 2026 06:00 CET = 05:00 UTC) ----------
+  const countdownEl = $("countdownValue");
   const TARGET_UTC_MS = Date.UTC(2026, 0, 7, 5, 0, 0);
-  const pad2 = (n) => String(n).padStart(2, '0');
-
-  function tickCountdown() {
-    if (!countdownEl) return;
+  function pad2(n){ return String(n).padStart(2, "0"); }
+  function tickCountdown(){
     const diff = TARGET_UTC_MS - Date.now();
-    if (diff <= 0) { countdownEl.textContent = 'NU. ☕'; return; }
+    if (!countdownEl) return;
+    if (diff <= 0){ countdownEl.textContent = "NU. ☕"; return; }
     const total = Math.floor(diff / 1000);
     const d = Math.floor(total / 86400);
     const h = Math.floor((total % 86400) / 3600);
@@ -27,541 +26,589 @@
   setInterval(tickCountdown, 1000);
   tickCountdown();
 
-  // ===== DOM =====
-  const canvas = document.getElementById('game');
-  const bubbleEl = document.getElementById('bubble');
-  const toastEl  = document.getElementById('hintToast');
+  // ---------- UI ----------
+  const canvas = $("game");
+  const toastEl = $("toast");
+  const bubbleEl = $("bubble");
+  const soundBtn = $("soundBtn");
+  const helpBtn = $("helpBtn");
+  const helpModal = $("helpModal");
+  const closeHelpBtn = $("closeHelpBtn");
+  const kickBtn = $("kickBtn");
+  const sitBtn = $("sitBtn");
+  const wonder = $("wonder");
+  const closeWonderBtn = $("closeWonderBtn");
+  const wonderImg = $("wonderImg");
+  const wonderFallback = $("wonderFallback");
 
-  const soundBtn = document.getElementById('soundBtn');
-  const helpBtn = document.getElementById('helpBtn');
-  const helpModal = document.getElementById('helpModal');
-  const closeHelpBtn = document.getElementById('closeHelpBtn');
-
-  const kickBtn = document.getElementById('kickBtn');
-  const sitBtn  = document.getElementById('sitBtn');
-
-  const wonder = document.getElementById('wonder');
-  const wonderCanvas = document.getElementById('wonderCanvas');
-  const closeWonderBtn = document.getElementById('closeWonderBtn');
-
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d', { alpha: false });
-
-  // Wonder canvas is optional, but preferred
-  const wctx = (wonderCanvas && wonderCanvas.getContext) ? wonderCanvas.getContext('2d', { alpha: true }) : null;
-
-  function showBubble(text, ms = 1600) {
-    if (!bubbleEl) return;
-    bubbleEl.textContent = text;
-    bubbleEl.classList.remove('hidden');
-    clearTimeout(showBubble._t);
-    showBubble._t = setTimeout(() => bubbleEl.classList.add('hidden'), ms);
-  }
-
-  function toast(text, ms = 1200) {
+  function toast(msg, ms=1200){
     if (!toastEl) return;
-    toastEl.textContent = text;
-    toastEl.classList.remove('hidden');
+    toastEl.textContent = msg;
+    toastEl.classList.remove("hidden");
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => toastEl.classList.add('hidden'), ms);
+    toast._t = setTimeout(()=>toastEl.classList.add("hidden"), ms);
+  }
+  function bubble(msg, ms=1600){
+    if (!bubbleEl) return;
+    bubbleEl.textContent = msg;
+    bubbleEl.classList.remove("hidden");
+    clearTimeout(bubble._t);
+    bubble._t = setTimeout(()=>bubbleEl.classList.add("hidden"), ms);
   }
 
-  helpBtn?.addEventListener('click', () => helpModal?.classList.remove('hidden'));
-  closeHelpBtn?.addEventListener('click', () => helpModal?.classList.add('hidden'));
+  helpBtn?.addEventListener("click", ()=> helpModal?.classList.remove("hidden"));
+  closeHelpBtn?.addEventListener("click", ()=> helpModal?.classList.add("hidden"));
 
-  // ===== Audio (WebAudio) =====
+  // If julbild.jpg missing, show fallback art
+  if (wonderImg && wonderFallback){
+    wonderImg.addEventListener("error", () => {
+      wonderImg.classList.add("hidden");
+      wonderFallback.classList.remove("hidden");
+    });
+  }
+
+  closeWonderBtn?.addEventListener("click", ()=>{
+    wonder?.classList.add("hidden");
+    bubble("Tillbaka i rummet. Som vanligt.");
+  });
+
+  // ---------- Audio (WebAudio) ----------
   let audioEnabled = false;
   let audioCtx = null;
 
-  function ensureAudio() {
+  function ensureAudio(){
     if (audioCtx) return;
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
 
-  function playGrunt(intensity = 1) {
+  function ping(freq, t=0.08, gain=0.08){
     if (!audioEnabled) return;
     ensureAudio();
-    const now = audioCtx.currentTime;
-
-    const o = audioCtx.createOscillator();
-    const n = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    const f = audioCtx.createBiquadFilter();
-
-    f.type = 'bandpass';
-    f.frequency.value = 320 + Math.random() * 520;
-    f.Q.value = 0.8 + Math.random() * 2.6;
-
-    o.type = Math.random() < 0.5 ? 'sawtooth' : 'square';
-    n.type = 'triangle';
-
-    const base = 110 + Math.random() * 90;
-
-    o.frequency.setValueAtTime(base * (1.2 + 0.25 * intensity), now);
-    o.frequency.exponentialRampToValueAtTime(base * 0.7, now + 0.16);
-
-    n.frequency.setValueAtTime(base * 2.1, now);
-    n.frequency.exponentialRampToValueAtTime(base * 1.3, now + 0.16);
-
+    const a = audioCtx;
+    const now = a.currentTime;
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.type = "triangle";
+    o.frequency.value = freq;
     g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.11 * intensity, now + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-
-    o.connect(f); n.connect(f);
-    f.connect(g); g.connect(audioCtx.destination);
-
-    o.start(now); n.start(now);
-    o.stop(now + 0.24); n.stop(now + 0.24);
+    g.gain.exponentialRampToValueAtTime(gain, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + t);
+    o.connect(g); g.connect(a.destination);
+    o.start(now); o.stop(now + t + 0.02);
   }
 
-  function playJingle() {
+  function grunt(intensity=1){
     if (!audioEnabled) return;
     ensureAudio();
-    const now = audioCtx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 659.25, 523.25]; // C E G E C
-    notes.forEach((freq, i) => {
-      const t = now + i * 0.11;
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.type = 'triangle';
-      o.frequency.value = freq;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.08, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(t); o.stop(t + 0.12);
+    const a = audioCtx;
+    const now = a.currentTime;
+
+    const o = a.createOscillator();
+    const g = a.createGain();
+    const f = a.createBiquadFilter();
+
+    f.type = "bandpass";
+    f.frequency.value = 240 + Math.random() * 520;
+    f.Q.value = 1.2 + Math.random() * 1.8;
+
+    o.type = Math.random() < 0.5 ? "sawtooth" : "square";
+    const base = 90 + Math.random() * 70;
+    o.frequency.setValueAtTime(base * (1 + 0.25*intensity), now);
+    o.frequency.exponentialRampToValueAtTime(base * 0.62, now + 0.18);
+
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.12*intensity, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+
+    o.connect(f); f.connect(g); g.connect(a.destination);
+    o.start(now); o.stop(now + 0.25);
+  }
+
+  function jingle(){
+    if (!audioEnabled) return;
+    [523.25,659.25,783.99,659.25,523.25].forEach((f,i)=>{
+      setTimeout(()=>ping(f, 0.09, 0.08), i*90);
     });
   }
 
-  soundBtn?.addEventListener('click', async () => {
+  soundBtn?.addEventListener("click", async ()=>{
     audioEnabled = !audioEnabled;
-    soundBtn.textContent = audioEnabled ? '🔊 Ljud: PÅ' : '🔊 Ljud: AV';
-    if (audioEnabled) {
+    soundBtn.textContent = audioEnabled ? "🔊 Ljud: PÅ" : "🔊 Ljud: AV";
+    if (audioEnabled){
       ensureAudio();
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
-      toast('Ljud på. Jesper har… foley.', 1200);
-      playGrunt(1.0);
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+      toast("Ljud på.");
+      grunt(1.0);
     } else {
-      toast('Ljud av. Stillhet. Nästan.', 1200);
+      toast("Ljud av.");
     }
   });
 
-  // ===== Math helpers =====
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+  // ---------- Canvas / rendering ----------
+  if (!canvas){
+    console.warn("Canvas #game saknas.");
+    return;
+  }
+  const ctx = canvas.getContext("2d", { alpha: false });
 
-  function aabbCircleHit(x, y, w, h, cx, cy, cr) {
-    const px = clamp(cx, x, x + w);
-    const py = clamp(cy, y, y + h);
-    return dist(px, py, cx, cy) <= cr;
+  // fixed world (side view)
+  const WORLD = { w: 900, h: 360 };
+  const view = { s: 1, ox: 0, oy: 0, cssW: 0, cssH: 0 };
+
+  // room rectangle (side view)
+  const ROOM = { x: 40, y: 40, w: 820, h: 260 };
+  const FLOOR_Y = ROOM.y + ROOM.h - 38; // ground line
+
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    view.cssW = rect.width;
+    view.cssH = rect.height;
+
+    view.s = Math.min(rect.width / WORLD.w, rect.height / WORLD.h);
+    view.ox = (rect.width - WORLD.w * view.s) / 2;
+    view.oy = (rect.height - WORLD.h * view.s) / 2;
+  }
+  window.addEventListener("resize", resize, { passive:true });
+  resize();
+
+  function toWorld(px, py){
+    return { x: (px - view.ox)/view.s, y: (py - view.oy)/view.s };
   }
 
-  // ===== Game state =====
-  const state = {
-    sitting: false,
-    lastAction: 0,
-    dragging: null,
-
-    // joystick in canvas pixels; converted to world in toWorld()
-    joy: { active: false, startX: 0, startY: 0, dx: 0, dy: 0 },
-
-    secret: { step: 0, unlocked: false }, // ⏰ -> 🍬 -> ⭐ -> sit
-
-    puffs: [],
-    snow: [],
-    snowT: 0
+  // ---------- Game objects ----------
+  const props = {
+    table: { x: 150, w: 210 },
+    chair: { x: 430, w: 130 },
+    tree:  { x: 700, w: 130 },
+    frame: { x: 90, y: 75, w: 90, h: 60 } // empty “tavla”
   };
 
-  // ===== World (fixed coordinate system) =====
-  const WORLD = { w: 360, h: 520 };
-  const ROOM  = { x: 14, y: 14, w: 332, h: 330 };
-
-  const view = { scale: 1, ox: 0, oy: 0, cssW: 0, cssH: 0, dpr: 1 };
-
-  // Entities (placed in placeEntities)
-  const jesper = { x: 80, y: 290, vx: 0, vy: 0, r: 18, face: 1 };
-
-  const props = {
-    table: { x: 0, y: 0, w: 150, h: 56 },
-    chair: { x: 0, y: 0, w: 92,  h: 92 },
-    tree:  { x: 0, y: 0, w: 104, h: 156 }
+  const jesper = {
+    x: 120,
+    vx: 0,
+    facing: 1,
+    r: 22,
+    action: "idle", // idle/walk/kick/sit
+    actionT: 0,
+    blinkT: 0
   };
 
   const ornaments = [
-    { id: 'clock', label: '⏰', base: '#fde047', x: 0, y: 0, r: 18, vx: 0, vy: 0 },
-    { id: 'candy', label: '🍬', base: '#fb7185', x: 0, y: 0, r: 18, vx: 0, vy: 0 },
-    { id: 'star',  label: '⭐', base: '#60a5fa', x: 0, y: 0, r: 18, vx: 0, vy: 0 }
+    { id:"clock", label:"⏰", x: 300, vx: 0, r: 20, base:"#fde047" },
+    { id:"candy", label:"🍬", x: 360, vx: 0, r: 20, base:"#fb7185" },
+    { id:"star",  label:"⭐", x: 520, vx: 0, r: 20, base:"#60a5fa" }
   ];
 
-  function placeEntities() {
-    // furniture: separated, readable
-    props.table.x = ROOM.x + 18;
-    props.table.y = ROOM.y + ROOM.h - 118;
+  const state = {
+    joy: { active:false, startX:0, dx:0 },
+    dragging: null,
+    secretStep: 0,
+    unlocked: false,
+  };
 
-    props.chair.x = props.table.x + props.table.w + 20;
-    props.chair.y = props.table.y + 10;
+  // keep everything on floor
+  function floorYForRadius(r){ return FLOOR_Y - r; }
 
-    props.tree.x  = ROOM.x + ROOM.w - props.tree.w - 16;
-    props.tree.y  = ROOM.y + 26;
-
-    // ornaments centered and not on top of tree
-    const cx = ROOM.x + ROOM.w * 0.56;
-    const cy = ROOM.y + ROOM.h * 0.40;
-    const gap = 62;
-
-    ornaments[0].x = cx - gap; ornaments[0].y = cy + 18; ornaments[0].vx = ornaments[0].vy = 0;
-    ornaments[1].x = cx;       ornaments[1].y = cy - 10; ornaments[1].vx = ornaments[1].vy = 0;
-    ornaments[2].x = cx + gap; ornaments[2].y = cy + 18; ornaments[2].vx = ornaments[2].vy = 0;
-
-    // Jesper start: bottom-left
-    jesper.x = ROOM.x + 70;
-    jesper.y = ROOM.y + ROOM.h - 72;
-    jesper.vx = 0; jesper.vy = 0; jesper.face = 1;
+  // collision x ranges for ornaments
+  function blockRanges(){
+    // each block is a solid column on floor (table legs-ish, chair base, tree trunk)
+    return [
+      { x: props.table.x + 18, w: 28 },
+      { x: props.table.x + props.table.w - 46, w: 28 },
+      { x: props.chair.x + 12, w: props.chair.w - 24 },
+      { x: props.tree.x + 52, w: 26 }, // trunk
+    ];
   }
 
-  // ===== Resize =====
-  function resizeAll() {
-    const rect = canvas.getBoundingClientRect();
-    view.cssW = rect.width;
-    view.cssH = rect.height;
-    view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  function resolveOrnamentBlocks(o){
+    // room bounds
+    const minX = ROOM.x + o.r;
+    const maxX = ROOM.x + ROOM.w - o.r;
+    if (o.x < minX){ o.x = minX; o.vx *= -0.55; }
+    if (o.x > maxX){ o.x = maxX; o.vx *= -0.55; }
 
-    canvas.width = Math.max(2, Math.round(view.cssW * view.dpr));
-    canvas.height = Math.max(2, Math.round(view.cssH * view.dpr));
-    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-
-    // fit world inside canvas
-    view.scale = Math.min(view.cssW / WORLD.w, view.cssH / WORLD.h);
-    view.ox = (view.cssW - WORLD.w * view.scale) / 2;
-    view.oy = (view.cssH - WORLD.h * view.scale) / 2;
-
-    if (wonderCanvas && wctx) {
-      const W = window.innerWidth;
-      const H = window.innerHeight;
-      wonderCanvas.width  = Math.max(2, Math.round(W * view.dpr));
-      wonderCanvas.height = Math.max(2, Math.round(H * view.dpr));
-      wctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    }
-
-    // place after resize to keep proportions consistent
-    placeEntities();
-  }
-
-  function maybeResizeFromSafariUI() {
-    const rect = canvas.getBoundingClientRect();
-    if (Math.abs(rect.width - view.cssW) > 0.5 || Math.abs(rect.height - view.cssH) > 0.5) {
-      resizeAll();
+    // blocks
+    for (const b of blockRanges()){
+      const left = b.x - o.r;
+      const right = b.x + b.w + o.r;
+      if (o.x > left && o.x < right){
+        // push out to nearest side
+        const dl = Math.abs(o.x - left);
+        const dr = Math.abs(right - o.x);
+        if (dl < dr){
+          o.x = left;
+          o.vx = -Math.abs(o.vx) * 0.65;
+        } else {
+          o.x = right;
+          o.vx = Math.abs(o.vx) * 0.65;
+        }
+      }
     }
   }
 
-  window.addEventListener('resize', resizeAll);
-  resizeAll();
-
-  // ===== Coordinate conversion =====
-  function toWorld(px, py) {
-    return {
-      x: (px - view.ox) / view.scale,
-      y: (py - view.oy) / view.scale
-    };
+  function setAction(name){
+    jesper.action = name;
+    jesper.actionT = 0;
   }
 
-  // ===== Pointer input: drag ornaments OR joystick =====
-  function pointerPos(e) {
+  // ---------- Input (pointer) ----------
+  function pointerPos(e){
     const r = canvas.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
-  canvas.addEventListener('pointerdown', (e) => {
+  canvas.addEventListener("pointerdown", (e)=>{
     e.preventDefault();
     const p = pointerPos(e);
     const w = toWorld(p.x, p.y);
 
-    // hit ornaments
-    const hit = ornaments.find(o => dist(o.x, o.y, w.x, w.y) <= o.r + 10);
-    if (hit) {
-      state.dragging = hit;
-      hit.vx = 0; hit.vy = 0;
-      canvas.setPointerCapture(e.pointerId);
-      toast('Flyttar pynt.', 900);
-      playGrunt(0.75);
-      return;
+    // hit ornament? (drag)
+    for (const o of ornaments){
+      const oy = floorYForRadius(o.r);
+      const dx = w.x - o.x;
+      const dy = w.y - oy;
+      if (Math.hypot(dx,dy) <= o.r + 10){
+        state.dragging = o;
+        o.vx = 0;
+        canvas.setPointerCapture(e.pointerId);
+        toast("Flyttar pynt.");
+        grunt(0.7);
+        return;
+      }
     }
 
-    // joystick
+    // else joystick (horizontal only)
     state.joy.active = true;
     state.joy.startX = w.x;
-    state.joy.startY = w.y;
     state.joy.dx = 0;
-    state.joy.dy = 0;
     canvas.setPointerCapture(e.pointerId);
-  }, { passive: false });
+  }, { passive:false });
 
-  canvas.addEventListener('pointermove', (e) => {
+  canvas.addEventListener("pointermove", (e)=>{
     e.preventDefault();
     const p = pointerPos(e);
     const w = toWorld(p.x, p.y);
 
-    if (state.dragging) {
-      const o = state.dragging;
-      o.x = clamp(w.x, ROOM.x + o.r, ROOM.x + ROOM.w - o.r);
-      o.y = clamp(w.y, ROOM.y + o.r, ROOM.y + ROOM.h - o.r);
+    if (state.dragging){
+      state.dragging.x = clamp(w.x, ROOM.x + state.dragging.r, ROOM.x + ROOM.w - state.dragging.r);
       return;
     }
 
-    if (state.joy.active) {
-      const max = 46;
-      state.joy.dx = clamp(w.x - state.joy.startX, -max, max);
-      state.joy.dy = clamp(w.y - state.joy.startY, -max, max);
+    if (state.joy.active){
+      state.joy.dx = clamp(w.x - state.joy.startX, -120, 120);
     }
-  }, { passive: false });
+  }, { passive:false });
 
-  function endPointer() {
+  function endPointer(){
     state.dragging = null;
     state.joy.active = false;
-    state.joy.dx = 0; state.joy.dy = 0;
+    state.joy.dx = 0;
   }
-  canvas.addEventListener('pointerup', endPointer, { passive: false });
-  canvas.addEventListener('pointercancel', endPointer, { passive: false });
+  canvas.addEventListener("pointerup", endPointer, { passive:false });
+  canvas.addEventListener("pointercancel", endPointer, { passive:false });
 
-  // ===== Actions =====
-  kickBtn?.addEventListener('click', () => doKick());
-  sitBtn?.addEventListener('click', () => doSit());
+  // ---------- Buttons ----------
+  kickBtn?.addEventListener("click", ()=>doKick());
+  sitBtn?.addEventListener("click", ()=>doSit());
 
-  function advanceSecret(expectedId) {
-    if (state.secret.unlocked) return;
-    const stepId =
-      state.secret.step === 0 ? 'clock' :
-      state.secret.step === 1 ? 'candy' :
-      state.secret.step === 2 ? 'star'  : null;
-
-    if (expectedId === stepId) {
-      state.secret.step++;
-      toast(`Hemligheten: ${state.secret.step}/3`, 1000);
-      playGrunt(1.0);
-      if (state.secret.step === 3) showBubble('SITT på stolen. Nu.', 1400);
-      return;
+  // ---------- Secret logic ----------
+  function advanceSecret(id){
+    if (state.unlocked) return;
+    const seq = ["clock","candy","star"];
+    if (id === seq[state.secretStep]){
+      state.secretStep++;
+      toast(`Hemligheten: ${state.secretStep}/3`);
+      if (state.secretStep === 3) bubble("SITT på stolen. Nu.");
+    } else {
+      state.secretStep = 0;
+      toast("Nej. Hemligheten blev sur.");
     }
-    state.secret.step = 0;
-    toast('Nej. Hemligheten blev sur.', 1200);
-    playGrunt(0.8);
   }
 
-  function unlockWonder() {
-    if (state.secret.unlocked) return;
-    state.secret.unlocked = true;
-    playJingle();
-    showBubble('…okej. Respekt.', 1400);
-    wonder?.classList.remove('hidden');
+  function unlock(){
+    if (state.unlocked) return;
+    state.unlocked = true;
+    jingle();
+    bubble("…okej. Respekt.", 1400);
+    wonder?.classList.remove("hidden");
   }
 
-  closeWonderBtn?.addEventListener('click', () => {
-    wonder?.classList.add('hidden');
-    showBubble('Tillbaka i rummet. Som vanligt.', 1400);
-  });
+  // ---------- Actions ----------
+  function doKick(){
+    const reach = 90;
+    let best = null, bestD = 1e9;
 
-  function addPuff(x, y, strength = 1) {
-    state.puffs.push({
-      x, y,
-      r: 6 + Math.random() * 7 * strength,
-      a: 1.0,
-      vx: (Math.random() * 2 - 1) * 22 * strength,
-      vy: (Math.random() * 2 - 1) * 22 * strength
-    });
-    if (state.puffs.length > 30) state.puffs.splice(0, state.puffs.length - 30);
-  }
-
-  function doKick() {
-    const now = performance.now();
-    if (now - state.lastAction < 120) return;
-    state.lastAction = now;
-
-    const reach = 78;
-    let best = null;
-    let bestD = 1e9;
-    for (const o of ornaments) {
-      const d = dist(jesper.x, jesper.y, o.x, o.y);
-      if (d < reach && d < bestD) { best = o; bestD = d; }
+    for (const o of ornaments){
+      const d = Math.abs(o.x - jesper.x);
+      if (d < bestD){
+        bestD = d; best = o;
+      }
     }
+    setAction("kick");
+    grunt(1.0);
 
-    if (!best) {
-      showBubble('Sparkade luft. Känns korrekt.', 1400);
-      playGrunt(0.65);
+    if (!best || bestD > reach){
+      bubble("Sparkade luft. Det räknas.", 1200);
       return;
     }
 
-    const dx = best.x - jesper.x;
-    const dy = best.y - jesper.y;
-    const len = Math.max(1, Math.hypot(dx, dy));
-    const nx = dx / len, ny = dy / len;
-
-    const impulse = 520 + Math.random() * 140;
-    best.vx += nx * impulse;
-    best.vy += ny * impulse;
-
-    addPuff(best.x - nx * 14, best.y - ny * 14, 1.0);
-
-    showBubble(`👞 SPARK! (${best.label})`, 950);
-    playGrunt(1.0);
+    const dir = Math.sign(best.x - jesper.x) || jesper.facing;
+    best.vx += dir * (520 + Math.random()*120);
+    bubble(`👞 SPARK! (${best.label})`, 900);
     advanceSecret(best.id);
   }
 
-  function doSit() {
-    const c = props.chair;
-    const inRange = aabbCircleHit(c.x, c.y, c.w, c.h, jesper.x, jesper.y, jesper.r + 12);
-
-    if (!inRange) {
-      showBubble('Satt mentalt. Inte fysiskt.', 1400);
-      playGrunt(0.6);
+  function doSit(){
+    // sit if close to chair
+    const chairCenter = props.chair.x + props.chair.w/2;
+    if (Math.abs(jesper.x - chairCenter) > 90){
+      bubble("Satt mentalt. Inte fysiskt.", 1300);
+      grunt(0.65);
       return;
     }
 
-    state.sitting = true;
-    showBubble('🪑 …existens… kaffe… jul…', 1350);
-    playGrunt(0.8);
+    setAction("sit");
+    grunt(0.75);
+    bubble("🪑 …existens… kaffe… jul…", 1400);
 
-    if (state.secret.step === 3 && !state.secret.unlocked) {
-      toast('Kombination fullbordad!', 1200);
-      unlockWonder();
-    } else if (!state.secret.unlocked) {
-      toast('Du satt. Hemligheten: skeptisk.', 1200);
+    if (state.secretStep === 3 && !state.unlocked){
+      toast("Kombination fullbordad!");
+      unlock();
     }
-
-    setTimeout(() => { state.sitting = false; }, 850);
   }
 
-  // ===== Light commentary =====
+  // ---------- Commentary ----------
   const lines = [
-    'Rummet är… minimalistiskt.',
-    'Jag är en legend i ett tomt rum.',
-    'Vem godkände den här granen?',
-    '⏰ känns… hotfull.',
-    'Jag vill ha kaffe.'
+    "Det här rummet känns… budget.",
+    "Jag vill ha kaffe. Enkelt.",
+    "Högtid: 90% väntan, 10% pynt.",
+    "Den där lilla tavlan… den är tom. Som jag.",
+    "Jag går åt höger. Symboliskt."
   ];
-  setInterval(() => {
-    if (wonder && !wonder.classList.contains('hidden')) return;
-    if (Math.random() < 0.24) {
-      showBubble(lines[(Math.random() * lines.length) | 0], 1500);
-      playGrunt(0.45);
+  setInterval(()=>{
+    if (!wonder?.classList.contains("hidden")) return;
+    if (Math.random() < 0.22){
+      bubble(lines[(Math.random()*lines.length)|0], 1700);
+      grunt(0.5);
     }
   }, 4200);
 
-  // ===== Physics =====
-  function resolveWallCircle(o) {
-    if (o.x - o.r < ROOM.x) { o.x = ROOM.x + o.r; o.vx *= -0.55; }
-    if (o.x + o.r > ROOM.x + ROOM.w) { o.x = ROOM.x + ROOM.w - o.r; o.vx *= -0.55; }
-    if (o.y - o.r < ROOM.y) { o.y = ROOM.y + o.r; o.vy *= -0.55; }
-    if (o.y + o.r > ROOM.y + ROOM.h) { o.y = ROOM.y + ROOM.h - o.r; o.vy *= -0.55; }
+  // ---------- Update / Draw ----------
+  function update(dt, tMs){
+    // blink timer
+    jesper.blinkT -= dt;
+    if (jesper.blinkT <= 0) jesper.blinkT = 2.5 + Math.random()*2.2;
+
+    // action state timing
+    jesper.actionT += dt;
+    if (jesper.action === "kick" && jesper.actionT > 0.35) jesper.action = "idle";
+    if (jesper.action === "sit" && jesper.actionT > 0.9) jesper.action = "idle";
+
+    // movement (only x)
+    let targetV = 0;
+    if (state.joy.active){
+      const n = state.joy.dx / 120; // -1..1
+      targetV = clamp(n, -1, 1) * 360;
+    }
+
+    if (Math.abs(targetV) > 12){
+      jesper.facing = Math.sign(targetV);
+      if (jesper.action !== "kick" && jesper.action !== "sit") jesper.action = "walk";
+    } else {
+      if (jesper.action === "walk") jesper.action = "idle";
+    }
+
+    // smooth velocity
+    jesper.vx = lerp(jesper.vx, targetV, clamp(dt*12, 0, 1));
+    jesper.x += jesper.vx * dt;
+    jesper.x = clamp(jesper.x, ROOM.x + jesper.r, ROOM.x + ROOM.w - jesper.r);
+
+    // ornaments physics (1D)
+    const friction = Math.pow(0.07, dt); // strong damping
+    for (const o of ornaments){
+      if (state.dragging === o) continue;
+      o.x += o.vx * dt;
+      o.vx *= friction;
+      if (Math.abs(o.vx) < 3) o.vx = 0;
+      resolveOrnamentBlocks(o);
+    }
   }
 
-  function resolveRectBlockCircle(o, rect) {
-    if (!aabbCircleHit(rect.x, rect.y, rect.w, rect.h, o.x, o.y, o.r)) return;
+  function draw(tMs){
+    // clear
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0,0,view.cssW, view.cssH);
 
-    const cx = clamp(o.x, rect.x, rect.x + rect.w);
-    const cy = clamp(o.y, rect.y, rect.y + rect.h);
-    const dx = o.x - cx, dy = o.y - cy;
-    const len = Math.max(1e-6, Math.hypot(dx, dy));
-    const nx = dx / len, ny = dy / len;
+    // world transform
+    ctx.save();
+    ctx.translate(view.ox, view.oy);
+    ctx.scale(view.s, view.s);
 
-    o.x = cx + nx * (o.r + 0.6);
-    o.y = cy + ny * (o.r + 0.6);
+    // room box
+    ctx.fillStyle = "#f3f4f6";
+    ctx.fillRect(ROOM.x, ROOM.y, ROOM.w, ROOM.h);
 
-    const dot = o.vx * nx + o.vy * ny;
-    o.vx -= 1.35 * dot * nx;
-    o.vy -= 1.35 * dot * ny;
-    o.vx *= 0.82; o.vy *= 0.82;
-  }
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRectStroke(ROOM.x, ROOM.y, ROOM.w, ROOM.h, 18);
 
-  // ===== Drawing primitives =====
-  function roundRect(x, y, w, h, r, fill, stroke) {
-    const rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
-    if (fill) ctx.fill();
-    if (stroke) ctx.stroke();
-  }
-
-  // ===== Draw: Furniture =====
-  function drawTable(t) {
-    // tabletop
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#111827';
+    // wall/floor separation
+    ctx.strokeStyle = "rgba(17,24,39,0.25)";
     ctx.lineWidth = 3;
-    roundRect(t.x, t.y, t.w, t.h, 14, true, true);
-
-    // subtle inset
-    ctx.strokeStyle = 'rgba(17,24,39,0.18)';
-    ctx.lineWidth = 2;
-    roundRect(t.x + 8, t.y + 8, t.w - 16, t.h - 16, 12, false, true);
-
-    // legs
-    ctx.fillStyle = '#e5e7eb';
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 2.5;
-    roundRect(t.x + 18, t.y + t.h - 2, 14, 38, 8, true, true);
-    roundRect(t.x + t.w - 32, t.y + t.h - 2, 14, 38, 8, true, true);
-
-    // coffee mug (tacky)
-    ctx.fillStyle = '#dbeafe';
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 2.5;
-    roundRect(t.x + t.w - 46, t.y + 12, 18, 16, 6, true, true);
     ctx.beginPath();
-    ctx.arc(t.x + t.w - 24, t.y + 20, 6, -0.5, 0.5);
+    ctx.moveTo(ROOM.x, FLOOR_Y);
+    ctx.lineTo(ROOM.x + ROOM.w, FLOOR_Y);
+    ctx.stroke();
+
+    // tiny “tavla” placeholder
+    drawFramePlaceholder();
+
+    // furniture
+    drawTable();
+    drawChair();
+    drawTree(tMs);
+
+    // ornaments
+    for (const o of ornaments) drawOrnament(o);
+
+    // Jesper
+    drawJesper(tMs);
+
+    // joystick hint
+    if (state.joy.active && !state.dragging) drawJoystick();
+
+    // label
+    ctx.fillStyle = "rgba(17,24,39,0.25)";
+    ctx.font = "900 14px ui-monospace, monospace";
+    ctx.fillText("RUM 01 – KALT / TYDLIGT / JUL", ROOM.x + 14, ROOM.y + ROOM.h - 12);
+
+    ctx.restore();
+  }
+
+  function roundRectStroke(x,y,w,h,r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
     ctx.stroke();
   }
 
-  function drawChair(c) {
-    // seat
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 3;
-    roundRect(c.x, c.y + 34, c.w, c.h - 34, 14, true, true);
+  function drawFramePlaceholder(){
+    const f = props.frame;
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRectStroke(f.x, f.y, f.w, f.h, 10);
+    ctx.fillRect(f.x+4, f.y+4, f.w-8, f.h-8);
 
-    // backrest (bigger and clear)
-    roundRect(c.x + 10, c.y, c.w - 20, 46, 14, true, true);
-
-    // small bolts (silly detail)
-    ctx.fillStyle = 'rgba(17,24,39,0.25)';
-    ctx.beginPath();
-    ctx.arc(c.x + 18, c.y + 52, 2.2, 0, Math.PI * 2);
-    ctx.arc(c.x + c.w - 18, c.y + 52, 2.2, 0, Math.PI * 2);
-    ctx.fill();
-
-    // label bubble
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 2.5;
-    roundRect(c.x + 24, c.y - 18, 48, 22, 10, true, true);
-    ctx.fillStyle = 'rgba(17,24,39,0.8)';
-    ctx.font = '900 10px ui-monospace, monospace';
-    ctx.fillText('STOL', c.x + 35, c.y - 3);
+    ctx.fillStyle = "rgba(17,24,39,0.35)";
+    ctx.font = "900 12px ui-monospace, monospace";
+    ctx.fillText("TAVLA", f.x + 16, f.y + 24);
+    ctx.fillStyle = "rgba(17,24,39,0.25)";
+    ctx.font = "900 10px ui-monospace, monospace";
+    ctx.fillText("(lägg bild själv)", f.x + 10, f.y + 42);
+    ctx.restore();
   }
 
-  function drawTree(tr, tMs) {
-    ctx.save();
+  function drawTable(){
+    const x = props.table.x;
+    const w = props.table.w;
+    const topY = FLOOR_Y - 86;
+    const h = 40;
 
-    // glow halo
-    const pulse = 0.75 + 0.25 * Math.sin(tMs / 240);
-    ctx.globalAlpha = 0.18 * pulse;
-    ctx.fillStyle = '#60a5fa';
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRectStroke(x, topY, w, h, 14);
+    ctx.fillRect(x+4, topY+4, w-8, h-8);
+
+    ctx.fillStyle = "#e5e7eb";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRectStroke(x + 18, topY + h - 2, 28, 70, 10);
+    roundRectStroke(x + w - 46, topY + h - 2, 28, 70, 10);
+
+    ctx.fillStyle = "#dbeafe";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 3;
+    const mx = x + w - 54, my = topY + 10;
+    roundRectStroke(mx, my, 22, 20, 7);
+    ctx.fillRect(mx+3, my+3, 16, 14);
     ctx.beginPath();
-    ctx.ellipse(tr.x + tr.w / 2, tr.y + tr.h * 0.55, 56, 74, 0, 0, Math.PI * 2);
+    ctx.arc(mx + 22, my + 11, 7, -0.7, 0.7);
+    ctx.stroke();
+  }
+
+  function drawChair(){
+    const x = props.chair.x, w = props.chair.w;
+    const seatY = FLOOR_Y - 52;
+
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+
+    roundRectStroke(x + 10, seatY - 78, w - 20, 74, 14);
+    ctx.fillRect(x + 14, seatY - 74, w - 28, 66);
+
+    roundRectStroke(x, seatY, w, 52, 14);
+    ctx.fillRect(x+4, seatY+4, w-8, 44);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 3;
+    roundRectStroke(x + 38, seatY - 102, 54, 28, 12);
+    ctx.fillRect(x + 41, seatY - 99, 48, 22);
+    ctx.fillStyle = "rgba(17,24,39,0.8)";
+    ctx.font = "1000 12px ui-monospace, monospace";
+    ctx.fillText("STOL", x + 50, seatY - 82);
+  }
+
+  function drawTree(tMs){
+    const x = props.tree.x, w = props.tree.w;
+    const topY = FLOOR_Y - 150;
+    const pulse = 0.75 + 0.25 * Math.sin(tMs/240);
+
+    ctx.save();
+    ctx.globalAlpha = 0.16 * pulse;
+    ctx.fillStyle = "#60a5fa";
+    ctx.beginPath();
+    ctx.ellipse(x + w/2, FLOOR_Y - 85, 78, 96, 0, 0, Math.PI*2);
     ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.restore();
 
-    // trunk
-    ctx.fillStyle = '#d1d5db';
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 2.5;
-    roundRect(tr.x + tr.w * 0.43, tr.y + tr.h * 0.78, tr.w * 0.14, tr.h * 0.20, 8, true, true);
+    ctx.fillStyle = "#d1d5db";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRectStroke(x + w/2 - 13, FLOOR_Y - 38, 26, 38, 10);
+    ctx.fillRect(x + w/2 - 10, FLOOR_Y - 35, 20, 32);
 
-    // triangles
-    const tri = (ax, ay, bx, by, cx, cy) => {
+    ctx.fillStyle = "#dcfce7";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+
+    triangle(x + w/2, topY, x + 12, topY + 70, x + w - 12, topY + 70);
+    triangle(x + w/2, topY + 48, x + 8, topY + 125, x + w - 8, topY + 125);
+
+    ctx.font = "26px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillText("⭐", x + w/2 - 12, topY + 18);
+
+    ctx.font = "22px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillText("🔴", x + 18, topY + 74);
+    ctx.fillText("🔴", x + w - 44, topY + 90);
+    ctx.fillText("🔴", x + w/2 - 10, topY + 118);
+
+    function triangle(ax, ay, bx, by, cx, cy){
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.lineTo(bx, by);
@@ -569,200 +616,174 @@
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-    };
-
-    ctx.fillStyle = '#dcfce7';
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 2.5;
-
-    tri(tr.x + tr.w / 2, tr.y + 10, tr.x + 10, tr.y + tr.h * 0.52, tr.x + tr.w - 10, tr.y + tr.h * 0.52);
-    tri(tr.x + tr.w / 2, tr.y + tr.h * 0.22, tr.x + 8, tr.y + tr.h * 0.76, tr.x + tr.w - 8, tr.y + tr.h * 0.76);
-
-    // topper star + baubles
-    ctx.font = '22px ' + getComputedStyle(document.body).fontFamily;
-    ctx.fillText('⭐', tr.x + tr.w / 2 - 10, tr.y + 24);
-
-    ctx.font = '18px ' + getComputedStyle(document.body).fontFamily;
-    ctx.fillText('🔴', tr.x + 16, tr.y + 64);
-    ctx.fillText('🔴', tr.x + tr.w - 30, tr.y + 78);
-    ctx.fillText('🔴', tr.x + tr.w / 2 - 8, tr.y + 104);
-
-    ctx.restore();
+    }
   }
 
-  function drawOrnament(o) {
-    // base disc
+  function drawOrnament(o){
+    const y = floorYForRadius(o.r);
     ctx.beginPath();
     ctx.fillStyle = o.base;
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 3;
-    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    ctx.arc(o.x, y, o.r, 0, Math.PI*2);
     ctx.fill();
     ctx.stroke();
 
-    // little shine
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(o.x - 6, o.y - 6, o.r * 0.35, Math.PI * 1.1, Math.PI * 1.7);
-    ctx.stroke();
-
-    // emoji
-    ctx.font = '24px ' + getComputedStyle(document.body).fontFamily;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#111827';
-    ctx.fillText(o.label, o.x, o.y + 1);
+    ctx.font = "26px " + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#111827";
+    ctx.fillText(o.label, o.x, y + 1);
   }
 
-  // ===== Jesper drawing (clearer character) =====
-  function drawJesper(tMs) {
-    const moving = Math.abs(jesper.vx) + Math.abs(jesper.vy) > 1;
-    const walk = moving ? Math.sin(tMs / 90) : 0;
-    const idle = moving ? 0 : Math.sin(tMs / 420);
-    const sit = state.sitting ? 1 : 0;
-    const bob = (sit ? 0.2 : 1) * (moving ? walk * 2.2 : idle * 1.0);
+  function drawJesper(tMs){
+    const y = FLOOR_Y - 8;
+    const moving = Math.abs(jesper.vx) > 18 && jesper.action !== "sit";
+    const phase = (tMs/120) % (Math.PI*2);
+    const walk = moving ? Math.sin(phase) : 0;
+    const bob = moving ? Math.sin(phase*2)*2.0 : Math.sin(tMs/650)*1.3;
 
     const x = jesper.x;
-    const y = jesper.y + bob;
-    const face = jesper.face || 1;
+    const face = jesper.facing || 1;
 
-    const skin  = 'rgba(255,235,190,1.0)';
-    const hair  = 'rgba(148,72,34,0.95)';
-    const hairH = 'rgba(198,108,58,0.78)';
-    const hood  = 'rgba(17,24,39,1.0)';
-    const pants = 'rgba(156,163,175,1.0)';
-    const shoe  = 'rgba(120,74,36,1.0)';
-
-    // shadow
-    ctx.beginPath();
-    ctx.fillStyle = 'rgba(17,24,39,0.18)';
-    ctx.ellipse(x, y + 32, 22, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const isKick = (jesper.action === "kick" && jesper.actionT < 0.28);
+    const isSit = (jesper.action === "sit");
+    const sitDrop = isSit ? 18 : 0;
 
     ctx.save();
-    ctx.translate(x, y);
+    ctx.translate(x, y - sitDrop + bob);
     ctx.scale(face, 1);
 
-    // motion lines
-    if (moving) {
-      ctx.strokeStyle = 'rgba(17,24,39,0.20)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-30, 10); ctx.lineTo(-44, 6);
-      ctx.moveTo(-30, 18); ctx.lineTo(-46, 18);
-      ctx.stroke();
-    }
-
-    // legs
-    const legSwing = sit ? 0 : walk * 10;
-    const knee = sit ? 9 : 0;
-    drawLeg(-9, 18, -12 + legSwing, 36 - knee);
-    drawLeg( 9, 18,  12 - legSwing, 36 - knee);
-
-    // hoodie body
-    ctx.fillStyle = hood;
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 3;
-    roundRect(-20, -6, 40, 38, 12, true, true);
-
-    // pocket
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    roundRect(-14, 14, 28, 12, 8, true, false);
-
-    // hood behind head
-    ctx.fillStyle = hood;
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(0, -26, 22, Math.PI * 0.05, Math.PI * 0.95);
-    ctx.closePath();
+    ctx.fillStyle = "rgba(17,24,39,0.18)";
+    ctx.ellipse(0, 28, 22, 6, 0, 0, Math.PI*2);
     ctx.fill();
-    ctx.stroke();
 
-    // arms
-    const armSwing = sit ? 0 : walk * 8;
-    drawArm(-20, 8, -34, 18 - armSwing);
-    drawArm( 20, 8,  34, 18 + armSwing);
+    const skin = "rgba(255,235,190,1)";
+    const hair = "rgba(148,72,34,0.95)";
+    const hairH = "rgba(198,108,58,0.78)";
+    const hood = "rgba(17,24,39,1)";
+    const pants = "rgba(156,163,175,1)";
+    const shoe = "rgba(120,74,36,1)";
 
-    // head
+    const legA = isSit ? 0 : walk * 10;
+    const legB = isSit ? 0 : -walk * 10;
+
+    drawLeg(-10, 6, -12 + legA, 24, pants, shoe);
+    drawLeg( 10, 6,  12 + legB, 24, pants, shoe);
+
+    ctx.fillStyle = hood;
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    roundRect(-18, -16, 36, 34, 12, true, true);
+
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    roundRect(-12, 2, 24, 12, 8, true, false);
+
+    const arm = isSit ? 0 : walk * 8;
+    const kickArm = isKick ? -14 : 0;
+    drawArm(-18, -6, -30, 6 - arm, hood);
+    drawArm( 18, -6,  30, 6 + arm + kickArm, hood);
+
     ctx.beginPath();
     ctx.fillStyle = skin;
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 3;
-    ctx.arc(0, -26, 16, 0, Math.PI * 2);
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = 4;
+    ctx.arc(0, -34, 16, 0, Math.PI*2);
     ctx.fill();
     ctx.stroke();
 
-    // curly hair cap + curls
     ctx.beginPath();
     ctx.fillStyle = hair;
-    ctx.arc(0, -36, 17, Math.PI, 0);
+    ctx.arc(0, -44, 17, Math.PI, 0);
     ctx.closePath();
     ctx.fill();
 
     ctx.strokeStyle = hairH;
     ctx.lineWidth = 2.2;
-    for (let i = -12; i <= 12; i += 6) {
+    for (let i=-12; i<=12; i+=6){
       ctx.beginPath();
-      ctx.arc(i, -42, 3.6, 0, Math.PI * 2);
+      ctx.arc(i, -50, 3.6, 0, Math.PI*2);
       ctx.stroke();
     }
 
-    // tortoiseshell glasses
-    const gg = ctx.createLinearGradient(-18, -34, 18, -18);
-    gg.addColorStop(0.00, 'rgba(20,20,20,0.95)');
-    gg.addColorStop(0.35, 'rgba(120,74,36,0.95)');
-    gg.addColorStop(0.70, 'rgba(210,190,150,0.95)');
-    gg.addColorStop(1.00, 'rgba(20,20,20,0.95)');
+    const g = ctx.createLinearGradient(-18, -46, 18, -30);
+    g.addColorStop(0.00, "rgba(20,20,20,0.95)");
+    g.addColorStop(0.35, "rgba(120,74,36,0.95)");
+    g.addColorStop(0.70, "rgba(210,190,150,0.95)");
+    g.addColorStop(1.00, "rgba(20,20,20,0.95)");
 
-    ctx.strokeStyle = gg;
+    ctx.strokeStyle = g;
     ctx.lineWidth = 3.8;
-    circleStroke(-7, -28, 7.0);
-    circleStroke( 7, -28, 7.0);
-
+    circleStroke(-7, -36, 7.2);
+    circleStroke( 7, -36, 7.2);
     ctx.lineWidth = 3.0;
     ctx.beginPath();
-    ctx.moveTo(-1.6, -28);
-    ctx.lineTo( 1.6, -28);
+    ctx.moveTo(-1.6, -36);
+    ctx.lineTo( 1.6, -36);
     ctx.stroke();
 
-    // eyes
-    ctx.fillStyle = '#111827';
-    circleFill(-5, -28, 2.2);
-    circleFill( 5, -28, 2.2);
+    const blink = (jesper.blinkT < 0.10);
+    if (blink){
+      ctx.strokeStyle = "rgba(17,24,39,0.8)";
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(-8, -36); ctx.lineTo(-2, -36);
+      ctx.moveTo( 2, -36); ctx.lineTo( 8, -36);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = "#111827";
+      circleFill(-5, -36, 2.2);
+      circleFill( 5, -36, 2.2);
+    }
 
-    // mouth
-    ctx.strokeStyle = 'rgba(17,24,39,0.85)';
+    ctx.strokeStyle = "rgba(17,24,39,0.85)";
     ctx.lineWidth = 2.6;
     ctx.beginPath();
-    if (sit) { ctx.moveTo(-4, -18); ctx.lineTo(4, -18); }
-    else { ctx.arc(0, -18, 4, 0.12 * Math.PI, 0.88 * Math.PI); }
+    if (isKick){
+      ctx.moveTo(-6, -26); ctx.lineTo( 6, -26);
+    } else if (isSit){
+      ctx.arc(0, -26, 5, 0.15*Math.PI, 0.85*Math.PI);
+    } else {
+      ctx.arc(0, -26, 4, 0.10*Math.PI, 0.90*Math.PI);
+    }
     ctx.stroke();
 
-    // label
-    ctx.font = '900 12px ui-monospace, monospace';
-    ctx.fillStyle = 'rgba(17,24,39,0.55)';
-    ctx.textAlign = 'center';
-    ctx.fillText('JESPER', 0, -56);
+    ctx.font = "900 12px ui-monospace, monospace";
+    ctx.fillStyle = "rgba(17,24,39,0.55)";
+    ctx.textAlign = "center";
+    ctx.fillText("JESPER", 0, -62);
 
     ctx.restore();
 
-    function drawLeg(hipX, hipY, footX, footY) {
+    function roundRect(x,y,w,h,r,fill,stroke){
+      const rr = Math.min(r, w/2, h/2);
       ctx.beginPath();
-      ctx.strokeStyle = pants;
-      ctx.lineWidth = 10;
-      ctx.lineCap = 'round';
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y, x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x, y+h, rr);
+      ctx.arcTo(x, y+h, x, y, rr);
+      ctx.arcTo(x, y, x+w, y, rr);
+      ctx.closePath();
+      if (fill) ctx.fill();
+      if (stroke) ctx.stroke();
+    }
+
+    function drawLeg(hipX, hipY, footX, footY, pantsCol, shoeCol){
+      ctx.beginPath();
+      ctx.strokeStyle = pantsCol;
+      ctx.lineWidth = 11;
+      ctx.lineCap = "round";
       ctx.moveTo(hipX, hipY);
       ctx.lineTo(footX, footY);
       ctx.stroke();
 
-      ctx.fillStyle = shoe;
-      ctx.strokeStyle = '#111827';
-      ctx.lineWidth = 2.5;
+      ctx.fillStyle = shoeCol;
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 3;
       roundRect(footX - 13, footY - 7, 26, 14, 7, true, true);
 
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.strokeStyle = "rgba(0,0,0,0.25)";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(footX - 10, footY + 4);
@@ -770,339 +791,73 @@
       ctx.stroke();
     }
 
-    function drawArm(x1, y1, x2, y2) {
+    function drawArm(x1, y1, x2, y2, sleeveCol){
       ctx.beginPath();
-      ctx.strokeStyle = hood;
+      ctx.strokeStyle = sleeveCol;
       ctx.lineWidth = 11;
-      ctx.lineCap = 'round';
+      ctx.lineCap = "round";
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.fillStyle = 'rgba(255,235,190,0.8)';
-      ctx.strokeStyle = '#111827';
+      ctx.fillStyle = "rgba(255,235,190,0.85)";
+      ctx.strokeStyle = "#111827";
       ctx.lineWidth = 2;
-      ctx.arc(x2, y2, 4.6, 0, Math.PI * 2);
+      ctx.arc(x2, y2, 4.8, 0, Math.PI*2);
       ctx.fill();
       ctx.stroke();
     }
 
-    function circleStroke(cx, cy, r) {
+    function circleStroke(cx, cy, r){
       ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
       ctx.stroke();
     }
-    function circleFill(cx, cy, r) {
+    function circleFill(cx, cy, r){
       ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
       ctx.fill();
     }
   }
 
-  function drawJoystick() {
-    const bx = state.joy.startX;
-    const by = state.joy.startY;
+  function drawJoystick(){
+    const bx = clamp(state.joy.startX, ROOM.x+40, ROOM.x+ROOM.w-40);
+    const by = ROOM.y + ROOM.h - 80;
     const kx = bx + state.joy.dx;
-    const ky = by + state.joy.dy;
 
     ctx.globalAlpha = 0.9;
-    ctx.fillStyle = 'rgba(17,24,39,0.07)';
-    ctx.strokeStyle = 'rgba(17,24,39,0.35)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(bx, by, 26, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-
-    ctx.fillStyle = 'rgba(37,99,235,0.18)';
-    ctx.strokeStyle = 'rgba(17,24,39,0.55)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(kx, ky, 18, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  // ===== Wonder (pretty winter card) =====
-  function ensureSnowParticles() {
-    if (state.snow.length) return;
-    for (let i = 0; i < 140; i++) {
-      state.snow.push({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        r: 0.8 + Math.random() * 2.2,
-        s: 18 + Math.random() * 80,
-        a: 0.25 + Math.random() * 0.70
-      });
-    }
-  }
-
-  function drawWonderScene() {
-    if (!wctx || !wonderCanvas) return;
-    ensureSnowParticles();
-
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-
-    // gradient sky
-    const g = wctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#0b1026');
-    g.addColorStop(1, '#1d4ed8');
-    wctx.fillStyle = g;
-    wctx.fillRect(0, 0, W, H);
-
-    // moon
-    wctx.globalAlpha = 0.95;
-    wctx.fillStyle = 'rgba(255,255,255,0.92)';
-    wctx.beginPath();
-    wctx.arc(W * 0.78, H * 0.22, 42, 0, Math.PI * 2);
-    wctx.fill();
-
-    wctx.globalAlpha = 0.18;
-    wctx.beginPath();
-    wctx.arc(W * 0.78, H * 0.22, 88, 0, Math.PI * 2);
-    wctx.fill();
-
-    // snow hills
-    wctx.globalAlpha = 1;
-    wctx.fillStyle = 'rgba(255,255,255,0.10)';
-    wctx.beginPath();
-    wctx.moveTo(0, H * 0.78);
-    wctx.quadraticCurveTo(W * 0.35, H * 0.70, W * 0.60, H * 0.80);
-    wctx.quadraticCurveTo(W * 0.82, H * 0.88, W, H * 0.78);
-    wctx.lineTo(W, H);
-    wctx.lineTo(0, H);
-    wctx.closePath();
-    wctx.fill();
-
-    wctx.fillStyle = 'rgba(255,255,255,0.18)';
-    wctx.beginPath();
-    wctx.moveTo(0, H * 0.86);
-    wctx.quadraticCurveTo(W * 0.45, H * 0.78, W, H * 0.88);
-    wctx.lineTo(W, H);
-    wctx.lineTo(0, H);
-    wctx.closePath();
-    wctx.fill();
-
-    // cozy cabin
-    const cx = W * 0.18, cy = H * 0.62;
-    wctx.fillStyle = 'rgba(255,255,255,0.09)';
-    wctx.fillRect(cx, cy, 170, 110);
-
-    wctx.fillStyle = 'rgba(11,16,38,0.85)';
-    wctx.beginPath();
-    wctx.moveTo(cx - 14, cy + 14);
-    wctx.lineTo(cx + 85, cy - 52);
-    wctx.lineTo(cx + 184, cy + 14);
-    wctx.closePath();
-    wctx.fill();
-
-    // window light
-    wctx.fillStyle = 'rgba(255,220,120,0.95)';
-    wctx.fillRect(cx + 104, cy + 44, 38, 30);
-    wctx.globalAlpha = 0.30;
-    wctx.beginPath();
-    wctx.ellipse(cx + 123, cy + 70, 66, 44, 0, 0, Math.PI * 2);
-    wctx.fill();
-    wctx.globalAlpha = 1;
-
-    // pine silhouettes
-    function pine(x, y, h) {
-      wctx.save();
-      wctx.translate(x, y);
-      wctx.fillStyle = 'rgba(220,252,231,0.22)';
-      wctx.beginPath();
-      wctx.moveTo(0, -h);
-      wctx.lineTo(-h * 0.55, -h * 0.10);
-      wctx.lineTo(h * 0.55, -h * 0.10);
-      wctx.closePath();
-      wctx.fill();
-      wctx.restore();
-    }
-    pine(W * 0.60, H * 0.72, 150);
-    pine(W * 0.70, H * 0.77, 190);
-    pine(W * 0.50, H * 0.80, 130);
-
-    // snow particles
-    state.snowT += 1 / 60;
-    for (const p of state.snow) {
-      p.y += p.s / 60;
-      p.x += Math.sin((p.y + state.snowT * 50) / 40) * 0.4;
-      if (p.y > H + 10) { p.y = -10; p.x = Math.random() * W; }
-      wctx.globalAlpha = p.a;
-      wctx.fillStyle = '#ffffff';
-      wctx.beginPath();
-      wctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      wctx.fill();
-    }
-    wctx.globalAlpha = 1;
-
-    // headline (kept short)
-    wctx.fillStyle = 'rgba(255,255,255,0.95)';
-    wctx.font = '1000 26px ui-rounded, system-ui, -apple-system, sans-serif';
-    wctx.textAlign = 'center';
-    wctx.fillText('GOD JUL, JESPER', W * 0.5, H * 0.12);
-
-    wctx.fillStyle = 'rgba(255,255,255,0.86)';
-    wctx.font = '900 14px ui-monospace, monospace';
-    wctx.fillText('The Return of the Office Legend', W * 0.5, H * 0.15);
-  }
-
-  // ===== Game update/draw =====
-  function update(dt, tMs) {
-    maybeResizeFromSafariUI();
-
-    // joystick -> movement
-    let ax = 0, ay = 0;
-    if (state.joy.active) {
-      const jx = state.joy.dx / 46;
-      const jy = state.joy.dy / 46;
-      if (Math.abs(jx) > 0.12) ax = jx;
-      if (Math.abs(jy) > 0.12) ay = jy;
-    }
-
-    // normalize
-    const mag = Math.hypot(ax, ay);
-    if (mag > 1) { ax /= mag; ay /= mag; }
-
-    const speed = state.sitting ? 0 : 230;
-    jesper.vx = ax * speed;
-    jesper.vy = ay * speed;
-
-    if (Math.abs(jesper.vx) > 1) jesper.face = Math.sign(jesper.vx);
-
-    const oldX = jesper.x, oldY = jesper.y;
-    jesper.x += jesper.vx * dt;
-    jesper.y += jesper.vy * dt;
-
-    // clamp to room
-    jesper.x = clamp(jesper.x, ROOM.x + jesper.r, ROOM.x + ROOM.w - jesper.r);
-    jesper.y = clamp(jesper.y, ROOM.y + jesper.r, ROOM.y + ROOM.h - jesper.r);
-
-    // motion puffs
-    const moved = dist(oldX, oldY, jesper.x, jesper.y);
-    if (!state.sitting && moved > 0.5 && Math.random() < 0.40) {
-      addPuff(jesper.x - jesper.face * 10, jesper.y + 20, 0.45);
-    }
-
-    // ornaments physics
-    const friction = Math.pow(0.10, dt);
-    const blocks = [props.table, props.chair, props.tree];
-
-    for (const o of ornaments) {
-      if (state.dragging === o) continue;
-
-      o.x += o.vx * dt;
-      o.y += o.vy * dt;
-
-      o.vx *= friction;
-      o.vy *= friction;
-      if (Math.abs(o.vx) < 2) o.vx = 0;
-      if (Math.abs(o.vy) < 2) o.vy = 0;
-
-      resolveWallCircle(o);
-      for (const b of blocks) resolveRectBlockCircle(o, b);
-
-      // collide with Jesper
-      const d = dist(o.x, o.y, jesper.x, jesper.y);
-      const minD = o.r + jesper.r;
-      if (d < minD) {
-        const nx = (o.x - jesper.x) / Math.max(d, 1);
-        const ny = (o.y - jesper.y) / Math.max(d, 1);
-        const push = (minD - d) * 1.05;
-        o.x += nx * push; o.y += ny * push;
-        o.vx += nx * 140; o.vy += ny * 140;
-      }
-    }
-
-    // puffs update
-    for (const p of state.puffs) {
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.a -= 1.8 * dt;
-    }
-    state.puffs = state.puffs.filter(p => p.a > 0);
-
-    // if wonder open, animate wonder canvas too
-    if (wonder && !wonder.classList.contains('hidden')) {
-      drawWonderScene();
-    }
-  }
-
-  function draw(tMs) {
-    // clear (CSS pixel coordinates)
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, view.cssW, view.cssH);
-
-    // draw world
-    ctx.save();
-    ctx.translate(view.ox, view.oy);
-    ctx.scale(view.scale, view.scale);
-
-    // room background
-    ctx.fillStyle = '#f3f4f6';
-    ctx.fillRect(ROOM.x, ROOM.y, ROOM.w, ROOM.h);
-
-    // border
-    ctx.strokeStyle = '#111827';
+    ctx.fillStyle = "rgba(17,24,39,0.07)";
+    ctx.strokeStyle = "rgba(17,24,39,0.35)";
     ctx.lineWidth = 3;
-    ctx.strokeRect(ROOM.x, ROOM.y, ROOM.w, ROOM.h);
+    ctx.beginPath(); ctx.arc(bx, by, 24, 0, Math.PI*2); ctx.fill(); ctx.stroke();
 
-    // baseboard for depth
-    ctx.strokeStyle = 'rgba(17,24,39,0.22)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(ROOM.x, ROOM.y + ROOM.h - 26);
-    ctx.lineTo(ROOM.x + ROOM.w, ROOM.y + ROOM.h - 26);
-    ctx.stroke();
-
-    // label
-    ctx.fillStyle = 'rgba(17,24,39,0.25)';
-    ctx.font = '900 12px ui-monospace, monospace';
-    ctx.fillText('RUM 01 – EXISTENS / JUL / KAFFE', ROOM.x + 10, ROOM.y + ROOM.h - 10);
-
-    // puffs behind furniture
-    for (const p of state.puffs) {
-      ctx.globalAlpha = Math.max(0, p.a) * 0.30;
-      ctx.fillStyle = '#111827';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.fillStyle = "rgba(37,99,235,0.18)";
+    ctx.strokeStyle = "rgba(17,24,39,0.55)";
+    ctx.beginPath(); ctx.arc(kx, by, 16, 0, Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.globalAlpha = 1;
-
-    // furniture
-    drawTree(props.tree, tMs);
-    drawTable(props.table);
-    drawChair(props.chair);
-
-    // ornaments (depth)
-    ornaments.slice().sort((a, b) => a.y - b.y).forEach(drawOrnament);
-
-    // Jesper on top
-    drawJesper(tMs);
-
-    // joystick overlay
-    if (state.joy.active && !state.dragging) drawJoystick();
-
-    ctx.restore();
   }
 
-  // ===== Loop =====
-  let last = performance.now();
-  function loop(t) {
+  // ---------- Loop ----------
+  let last = nowMs();
+  function frame(t){
     const dt = Math.min(0.033, (t - last) / 1000);
     last = t;
 
-    if (wonder && !wonder.classList.contains('hidden')) {
-      // still animate wonder, but keep room frozen behind overlay
-      drawWonderScene();
-    } else {
+    if (wonder?.classList.contains("hidden") ?? true){
       update(dt, t);
       draw(t);
     }
 
-    requestAnimationFrame(loop);
+    requestAnimationFrame(frame);
   }
-  requestAnimationFrame(loop);
 
-  // First hint
-  setTimeout(() => toast('Tips: SPARKA ⏰ → 🍬 → ⭐ och SITT på stolen.'), 900);
+  try{
+    setTimeout(()=>toast("Tips: SPARKA ⏰ → 🍬 → ⭐ och SITT på stolen."), 900);
+    requestAnimationFrame(frame);
+  } catch(err){
+    console.error(err);
+    toast("JS-krasch 😵 (öppna konsolen)", 4000);
+  }
 
 })();
