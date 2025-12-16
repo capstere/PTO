@@ -3,64 +3,65 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Jesper i rummet — Deluxe (Dunderversion)</title>
   <meta name="theme-color" content="#ffffff" />
+  <title>Jesper i rummet</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="topbar__left">
       <div class="brand">✨ JESPER I RUMMET ✨</div>
-      <div class="countdown">
-        Tillbaka till kontoret:
-        <span class="countdown__value" id="countdownValue">…</span>
-      </div>
+      <div class="countdown">Tillbaka till hörnet: <span id="countdownValue" class="countdown__value">…</span></div>
     </div>
     <div class="topbar__right">
-      <button class="btn" id="soundBtn" type="button">🔊 Ljud: AV</button>
-      <button class="btn btn--alt" id="helpBtn" type="button">?</button>
+      <button id="soundBtn" class="btn">🔊 Ljud: AV</button>
+      <button id="helpBtn" class="btn btn--alt">?</button>
     </div>
   </header>
 
   <main class="app">
-    <section class="screen" aria-label="Spelet">
-      <canvas id="game" aria-label="Spelyta"></canvas>
-
-      <div class="toast hidden" id="hintToast"></div>
-      <div class="bubble hidden" id="bubble"></div>
-
-      <div class="microhint">
-        Dra i rummet = joystick • Dra pynt = flytta • <b>SPARKA</b> nära pynt • <b>SITT</b> nära stolen
-      </div>
+    <section class="screen" aria-label="Spel">
+      <canvas id="game"></canvas>
+      <div id="toast" class="toast hidden"></div>
+      <div id="bubble" class="bubble hidden"></div>
+      <div class="hint">Det blir bra till jul</div>
     </section>
 
     <section class="controls" aria-label="Kontroller">
-      <button class="btn btn--big" id="kickBtn" type="button">👞 SPARKA</button>
-      <button class="btn btn--big btn--alt" id="sitBtn" type="button">🪑 SITT</button>
+      <button id="kickBtn" class="btn btn--big">👞 KNUFF</button>
+      <button id="sitBtn" class="btn btn--big btn--alt">🪑 SITT</button>
     </section>
   </main>
 
-  <!-- HELP MODAL -->
-  <div class="modal hidden" id="helpModal" role="dialog" aria-modal="true" aria-label="Hjälp">
+  <div id="helpModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal__card">
-      <div class="modal__title">Hur man “spelar” (så mycket det går)</div>
+      <div class="modal__title">Vad är det här egentligen!?</div>
       <div class="modal__body">
-        <p><b>Styrning:</b> Dra med fingret i rummet (joystick). Inga pilar. Inget ansvar.</p>
-        <p><b>Flytta pynt:</b> Ta tag i en sak och dra runt den som om det vore “processförbättring”.</p>
-        <p><b>Sparka:</b> Ställ dig nära ett pynt och tryck <b>SPARKA</b>.</p>
-        <p><b>Hemlighet:</b> Det finns en fånig kombination som öppnar en underbar julbild.</p>
-        <button class="btn" id="closeHelpBtn" type="button">Stäng</button>
+        <p><b>Julstämning:</b> Gå runt i julefriden...</p>
+        <p><b>Mys:</b> Pynta lite...</p>
+        <p><b>Uppnå ultimat jul:</b>⏰ → 🍬 → ⭐ → 🪑</p>
+      </div>
+      <div class="modal__actions">
+        <button id="closeHelpBtn" class="btn btn--big">Aha...</button>
       </div>
     </div>
   </div>
 
-  <!-- WONDER -->
-  <div class="wonder hidden" id="wonder" role="dialog" aria-modal="true" aria-label="Julbild">
-    <canvas id="wonderCanvas"></canvas>
-    <div class="wonder__copy">
-      <div class="wonder__title">JESPER</div>
-      <div class="wonder__subtitle">…har låst upp JUL-MODEN.</div>
-      <button class="btn btn--big wonder__close" id="closeWonderBtn" type="button">Tillbaka till rummet</button>
+  <div id="wonder" class="wonder hidden" role="dialog" aria-modal="true">
+    <div class="wonder__card">
+      <div class="wonder__title">JESPER: THE RETURN OF THE JESP</div>
+      <div class="wonder__subtitle">Julfrid uppnådd i typ 6.2 sekunder.</div>
+
+      <div class="wonder__art">
+        <img id="wonderImg" class="wonder__img" src="assets/julbild.jpg" alt="Julbild" />
+        <div id="wonderFallback" class="wonder__fallback hidden">
+          <div class="sparkle">✨</div><div class="sparkle">✨</div><div class="sparkle">✨</div><div class="sparkle">✨</div>
+          <div class="sparkle">✨</div><div class="sparkle">✨</div><div class="sparkle">✨</div><div class="sparkle">✨</div>
+          <div class="fallbackText">Lägg en bild i <b>/assets/julbild.jpg</b></div>
+        </div>
+      </div>
+
+      <button id="closeWonderBtn" class="btn btn--big">Tillbaka till rummet</button>
     </div>
   </div>
 
